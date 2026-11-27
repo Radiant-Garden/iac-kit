@@ -12,6 +12,7 @@ Customer repositories **reference** the kit by a pinned tag; they never fork it.
 ## What is here
 
 ```
+bin/catalog                     check a catalog and look things up in it
 schema/catalog.v1.schema.json   structure and types of catalog.yml
 tofu/modules/catalog/           validates and normalises the catalog (outputs only)
 examples/catalog/               an example catalog, its expected output, invalid catalogs
@@ -53,6 +54,27 @@ pick up the schema from the first line of the example
 
 The schema is unstable until v1.0.
 
+## Checking and looking things up
+
+`bin/catalog` evaluates a `catalog.yml` with the catalog module in a
+throwaway root: no providers, no state, no secrets, nothing applied. It
+checks every rule and answers questions about the infrastructure the catalog
+describes, as text for people or with `--json` for scripts and AI agents:
+
+```sh
+bin/catalog -f catalog.yml check                 # every broken rule, or a summary
+bin/catalog -f catalog.yml host apps-01          # what runs on a host
+bin/catalog -f catalog.yml name wiki             # what a name is and where it points
+bin/catalog -f catalog.yml instance wiki-01-prod # placement, upstream, names, ACME targets
+bin/catalog -f catalog.yml access staff          # what a group may reach
+bin/catalog -f catalog.yml --json app wiki       # the same as JSON
+bin/catalog -f catalog.yml json '.service_names | keys'
+```
+
+`bin/catalog --help` lists every command. It shows what the file says, which
+is what Tofu will build after the next apply; a deployed state that differs
+shows up as a pending `tofu plan`.
+
 ## Requirements
 
 OpenTofu ≥ 1.11.
@@ -65,6 +87,7 @@ ci/validate.sh                                   # tofu validate, every module a
 tofu -chdir=tofu/modules/catalog init -backend=false
 tofu -chdir=tofu/modules/catalog test            # output = expected.json, invalid catalogs fail
 CHECK_JSONSCHEMA="pipx run check-jsonschema==0.33.0" ci/check-examples.sh
+ci/check-lookups.sh                              # bin/catalog answers match the example
 python3 ci/allowlist-check.py --self-test        # the checker still catches what it is for
 python3 ci/allowlist-check.py                    # no names or addresses outside ci/allowlist.txt
 python3 ci/allowlist-check.py --commits HEAD     # same for commit messages

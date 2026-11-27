@@ -58,12 +58,12 @@ CODE_ROOTS = {
     "var", "local", "locals", "module", "each", "data", "output", "path",
     "self", "count", "terraform", "tofu", "run", "item", "ansible", "site",
     "apps", "instances", "catalog", "sign_in", "guest", "guests", "policies",
-    "domains", "raw",
+    "domains", "raw", "value", "key",
 }
 
 IPV4 = re.compile(r"(?<![\w.])(\d{1,3}(?:\.\d{1,3}){3})(?:/(\d{1,2}))?(?![\w.])")
 IPV6 = re.compile(r"(?<![\w:.])([0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7})(?:/(\d{1,3}))?(?![\w:])")
-NAME = re.compile(r"(?<![\w@-])(?<![\w-]\.)((?:_?[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+([A-Za-z]{2,63}))(?![\w-])")
+NAME = re.compile(r"(?<![\w@-])(?<![\w-]\.)((?:_?[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?\.)+([A-Za-z]{2,63}))(?![\w-])")
 EMAIL_DOMAIN = re.compile(r"@((?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+([A-Za-z]{2,63}))\b")
 
 
@@ -117,10 +117,11 @@ def check_file(path, allowed):
             labels = name.split(".")
             if len(labels) == 2 and len(labels[0]) == 1:
                 continue  # attribute access on a loop variable: i.app, a.host
-            # Code paths (module.catalog.site, site.domains.services) start with
-            # a code root; drop leading code roots and check what is left, so
-            # a customer domain behind "apps." is still caught.
-            while len(labels) > 1 and labels[0].lower() in CODE_ROOTS:
+            # Code paths (module.catalog.site, local.raw_site.domains) start
+            # with a code root or an identifier with an inner underscore; drop
+            # such leading labels and check what is left, so a customer domain
+            # behind "apps." or "srv_01." is still caught.
+            while len(labels) > 1 and (labels[0].lower() in CODE_ROOTS or "_" in labels[0][1:]):
                 labels = labels[1:]
             if len(labels) < 2:
                 continue
@@ -144,6 +145,7 @@ def self_test():
         "host: apps." + "customer" + ".de",
         "https://site." + "customer" + ".org/x",
         "data." + "customer" + ".io",
+        "srv_01." + "customer" + ".de",
         "_acme-challenge.netbox." + "customer" + ".de",
         "cert *." + "customer" + ".de",
         "commit by someone@" + "customer" + ".de",

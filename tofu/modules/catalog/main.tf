@@ -93,9 +93,10 @@ locals {
     ]),
   )
 
-  # Optional blocks that are absent are skipped; an instance written as a
-  # bare key (value null) still counts, so it is reported as lacking host/guest.
-  present_objects = [for o in local.objects : o if o.value != null || o.kind == "instance"]
+  # Optional blocks that are absent are skipped. An app or instance written as
+  # a bare key (value null) still counts: an app is reported as missing ports
+  # and access, an instance as lacking host/guest.
+  present_objects = [for o in local.objects : o if o.value != null || contains(["app", "instance"], o.kind)]
 
   rule_unknown_keys = flatten([
     for o in local.present_objects : [

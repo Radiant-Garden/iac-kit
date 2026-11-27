@@ -17,5 +17,7 @@ module outputs may change in any minor release; such changes are listed under
   `sign_in`. Every validation rule is a precondition on an output.
 - `examples/catalog`: example catalog with its expected output, one invalid
   catalog per rule.
+- `bin/catalog`: checks a catalog and answers lookups (apps, instances,
+  hosts, names, access, sign-in) as text or JSON, without state or secrets.
 - CI: `tofu fmt -check`, `tofu validate`, `tofu test`, schema and plan-message
   check of the example catalogs, allowlist check against customer data.

@@ -113,6 +113,16 @@ run "invalid_alias_target" {
 
   expect_failures = [output.service_names]
 }
+run "invalid_app_bare" {
+  command = plan
+
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/app-bare.yml"))
+  }
+
+  expect_failures = [output.site]
+}
+
 run "invalid_app_name" {
   command = plan
 

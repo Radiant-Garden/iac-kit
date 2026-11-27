@@ -31,7 +31,7 @@ jobs:
         run: tofu -chdir=tofu/modules/catalog init -input=false -backend=false && tofu -chdir=tofu/modules/catalog test
 
   examples:
-    name: example catalogs (schema + plan messages)
+    name: example catalogs (schema, plan messages, lookups)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,6 +45,8 @@ jobs:
         run: pipx install check-jsonschema==0.33.0
       - name: check examples
         run: ci/check-examples.sh
+      - name: check bin/catalog lookups
+        run: ci/check-lookups.sh
 
   allowlist:
     name: allowlist (no customer data)

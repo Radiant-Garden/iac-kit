@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+# catalog – check a catalog and look things up in it.
+#
+# Evaluates catalog.yml with tofu/modules/catalog in a throwaway root: no
+# providers, no state, no secrets, nothing applied. What it shows is what the
+# file says (the derived model, every rule checked), not what is deployed.
+#
+#   catalog [-f catalog.yml] [--json] <command> [argument]
+#
+# Commands:
+#   check               validate; prints a summary or every broken rule
+#   apps                apps with access, ports and instances
+#   app <app>           one app: description, role, access, policies, instances
+#   instance <name>     one instance: where it runs, upstream, names, ACME targets
+#   host <host>         what runs on a host (shared host or guest node)
+#   name <name|fqdn>    what a DNS name is and where it points
+#   access <group>      what a group may reach
+#   sign-in [app]       sign-in registrations and redirect URIs
+#   hosts               every host and guest node the catalog uses
+#   json [jq filter]    the whole model as JSON, e.g. json '.instances | keys'
+#
+# --json prints the answer as JSON instead of text (for scripts and AI agents).
+# Needs tofu (>= 1.11) and jq.
+set -euo pipefail
+
+kit=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+file=catalog.yml
+json=false
+
+usage() { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d' | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+while (($#)); do
+  case $1 in
+    -f | --file) file=$2; shift 2 ;;
+    --json) json=true; shift ;;
+    -h | --help) usage ;;
+    -*) echo "catalog: unknown option $1" >&2; usage 2 >&2 ;;
+    *) break ;;
+  esac
+done
+(($#)) || usage 2 >&2
+cmd=$1; shift
+arg=${1:-}
+
+[[ -f $file ]] || { echo "catalog: $file not found (use -f)" >&2; exit 2; }
+file=$(cd "$(dirname "$file")" && pwd)/$(basename "$file")
+
+# ── Evaluate ────────────────────────────────────────────────────────────────
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+cat >"$work/main.tf" <<EOF
+module "catalog" {
+  source  = "$kit/tofu/modules/catalog"
+  catalog = yamldecode(file("$file"))
+}
+output "catalog" {
+  value = {
+    site          = module.catalog.site
+    apps          = module.catalog.apps
+    instances     = module.catalog.instances
+    service_names = module.catalog.service_names
+    acme_names    = module.catalog.acme_names
+    policies      = module.catalog.policies
+    guests        = module.catalog.guests
+    sign_in       = module.catalog.sign_in
+  }
+}
+EOF
+export TF_IN_AUTOMATION=1 TF_DATA_DIR="$work/.terraform"
+tofu -chdir="$work" init -input=false -backend=false -no-color >/dev/null
+if ! tofu -chdir="$work" plan -input=false -no-color -lock=false -out="$work/plan" -json >"$work/plan.log" 2>"$work/plan.err"; then
+  {
+    echo "$file: the catalog breaks these rules:"
+    jq -Rr 'fromjson? | select(.type == "diagnostic" and .diagnostic.severity == "error")
+            | "  - " + ((.diagnostic.detail // .diagnostic.summary) | sub("^Catalog: "; ""))' "$work/plan.log"
+    [[ -s $work/plan.err ]] && cat "$work/plan.err"
+  } >&2
+  exit 1
+fi
+model=$(tofu -chdir="$work" show -json "$work/plan" | jq '.planned_values.outputs.catalog.value')
+
+q() { jq -r --arg a "$arg" "$@" <<<"$model"; }
+need_arg() { [[ -n $arg ]] || { echo "catalog $cmd: needs an argument" >&2; exit 2; }; }
+not_found() { echo "catalog $cmd: no $1 \"$arg\" in $file" >&2; exit 1; }
+
+# ── Commands ────────────────────────────────────────────────────────────────
+case $cmd in
+  check)
+    if $json; then
+      q '{valid: true, apps: (.apps | length), instances: (.instances | length), names: (.service_names | length), registrations: (.sign_in | length)}'
+    else
+      q '"ok: \(.apps | length) apps, \(.instances | length) instances, \(.service_names | length) names, \(.sign_in | length) sign-in registrations"'
+    fi
+    ;;
+
+  apps)
+    if $json; then q '.apps'; else
+      q '.apps | to_entries[] | "\(.key)\t\(.value.access | join(","))\t\(.value.ports | join(","))\t\(.value.instances | join(","))"' |
+        { printf 'APP\tACCESS\tPORTS\tINSTANCES\n'; cat; } | column -t -s $'\t'
+    fi
+    ;;
+
+  app)
+    need_arg
+    q '.apps[$a] // empty' | grep -q . || not_found app
+    if $json; then
+      q '{app: $a} + .apps[$a] + {policies: (.policies | with_entries(select(.value.app == $a))),
+          instances: [.instances[] | select(.app == $a)]}'
+    else
+      q '.apps[$a] as $p |
+        "app \($a)" + (if $p.description != "" then " – \($p.description)" else "" end),
+        "  role:      \($p.role)",
+        "  group:     \($p.group)",
+        "  access:    \($p.access | join(", "))",
+        "  ports:     \($p.ports | join(", "))",
+        "  policies:  " + ([.policies[] | select(.app == $a) | .name] | join("; ")),
+        "  sign-in:   " + (if $p.sign_in then ([.sign_in | to_entries[] | select(.value.app == $a) | .key] | join(", ")) else "no" end),
+        "  instances:",
+        (.instances[] | select(.app == $a) | "    \(.name)  \(.host // ("guest on " + .guest.node))  \(.hostnames | join(", "))")'
+    fi
+    ;;
+
+  instance)
+    need_arg
+    q '.instances[$a] // empty' | grep -q . || not_found instance
+    if $json; then
+      q '.instances[$a] + {acme: [.instances[$a].hostnames[] as $h | .acme_names[$h] // empty | .target],
+                          guest_placement: .guests[$a]}'
+    else
+      q '.instances[$a] as $i |
+        "instance \($a) (app \($i.app), env \($i.env))",
+        (if $i.host then "  host:            \($i.host)" else "  guest:           \($i.guest.platform) on \($i.guest.node), vm_id \($i.guest.vm_id), ip \($i.guest.ip)" end),
+        "  upstream:        " + ($i.upstream // "none (NetBird only, no Caddy)"),
+        (if $i.host then "  compose project: \($i.compose_project) (/opt/\($i.compose_project))" else empty end),
+        (if ($i.networks | length) > 0 then "  networks:        \($i.networks | join(", "))" else empty end),
+        "  names:",
+        ($i.hostnames[] as $h | "    \($h)" + (if .acme_names[$h] then "  (ACME: _acme-challenge → \(.acme_names[$h].target))" else "" end))'
+    fi
+    ;;
+
+  host)
+    need_arg
+    sel='[.instances[] | select(.host == $a or .guest.node == $a)]'
+    [[ $(q "$sel | length") -gt 0 ]] || not_found host
+    if $json; then q "$sel"; else
+      q "$sel[] | \"\(.name)\t\(.app)\t\(if .host then \"container sidecar\" else \"guest \(.guest.platform)\" end)\t\(.upstream // \"-\")\t\(.hostnames | join(\",\"))\"" |
+        { printf 'INSTANCE\tAPP\tRUNS AS\tUPSTREAM\tNAMES\n'; cat; } | column -t -s $'\t'
+    fi
+    ;;
+
+  name)
+    need_arg
+    fqdn=$(q 'if .service_names[$a] then $a else (.service_names | keys[] | select(startswith($a + "."))) end' | head -n 1)
+    [[ -n $fqdn ]] || not_found name
+    arg=$fqdn
+    if $json; then
+      q '{fqdn: $a} + .service_names[$a] + {app: .instances[.service_names[$a].instance].app,
+          access: .apps[.instances[.service_names[$a].instance].app].access, acme: .acme_names[$a]}'
+    else
+      q '.service_names[$a] as $n | .instances[$n.instance] as $i |
+        "\($a)",
+        "  " + (if $n.target then "alias → \($n.target)" else "instance name → the NetBird peer \($n.instance)" end),
+        "  app:     \($i.app), reachable by \(.apps[$i.app].access | join(", ")) on \(.apps[$i.app].ports | join(", "))",
+        "  runs on: \($i.host // ("guest " + $i.guest.node))",
+        (if .acme_names[$a] then "  ACME:    _acme-challenge.\($a) → \(.acme_names[$a].target)" else empty end)'
+    fi
+    ;;
+
+  access)
+    need_arg
+    sel='[.policies[] | select(.sources | index($a))]'
+    [[ $(q "$sel | length") -gt 0 ]] || not_found group
+    if $json; then q "$sel"; else
+      q "$sel[] | \"\(.app)\t\(.protocol)/\(.ports | join(\",\"))\t\(.name)\"" |
+        { printf 'APP\tPORTS\tPOLICY\n'; cat; } | column -t -s $'\t'
+    fi
+    ;;
+
+  sign-in)
+    sel='.sign_in | with_entries(select($a == "" or .value.app == $a))'
+    if $json; then q "$sel"; else
+      q "$sel | to_entries[] | \"\(.key)  (\(if .value.local then \"local, public client\" else \"env \(.value.env)\" end))\", (.value.redirect_uris[] | \"  \(.)\")"
+    fi
+    ;;
+
+  hosts)
+    if $json; then q '{hosts: ([.instances[].host // empty] | unique), guest_nodes: ([.guests[].node] | unique)}'; else
+      q '([.instances[].host // empty] | unique[]), ([.guests[].node] | unique[] | "\(.) (guest node)")'
+    fi
+    ;;
+
+  json)
+    jq "${arg:-.}" <<<"$model"
+    ;;
+
+  *)
+    echo "catalog: unknown command $cmd" >&2
+    usage 2 >&2
+    ;;
+esac
