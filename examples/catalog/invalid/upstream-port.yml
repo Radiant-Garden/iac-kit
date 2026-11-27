@@ -1,0 +1,14 @@
+# expect-output: instances
+# expect-error: upstream must be <name>:<port>, 127.0.0.1:<port> or unix//<path>: wiki-01-prod: wiki:70000
+# schema: valid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+  acme: { provider: hetzner, challenge_zone: acme.example.com }
+apps:
+  wiki:
+    ports: [tcp/443]
+    access: [staff]
+    instances:
+      wiki-01-prod: { host: apps-01, upstream: "wiki:70000" }

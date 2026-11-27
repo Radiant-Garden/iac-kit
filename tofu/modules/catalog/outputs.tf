@@ -22,10 +22,26 @@ output "site" {
     condition     = local.rule_environments
     error_message = "Catalog: site.environments must list at least one environment."
   }
+  precondition {
+    condition     = length(local.rule_null_entries) == 0
+    error_message = "Catalog: list entries must not be empty (null): ${join(", ", local.rule_null_entries)}."
+  }
+  precondition {
+    condition     = length(local.rule_bad_environment_names) == 0
+    error_message = "Catalog: environment names must be lowercase letters and digits, starting with a letter: ${join(", ", local.rule_bad_environment_names)}."
+  }
+  precondition {
+    condition     = length(local.rule_unsupported_providers) == 0
+    error_message = "Catalog: unsupported provider: ${join(", ", local.rule_unsupported_providers)}."
+  }
+  precondition {
+    condition     = local.rule_bad_role_namespace
+    error_message = "Catalog: site.identity.role_namespace must be an https:// URL without a trailing slash (app-role IDs are derived from it)."
+  }
 }
 
 output "apps" {
-  description = "Apps by name, with defaults applied and `role` resolved."
+  description = "Apps by name, with defaults applied, `role` resolved and `group` (app-<app>) added."
   value       = local.apps
 
   precondition {
@@ -35,6 +51,18 @@ output "apps" {
   precondition {
     condition     = length(local.rule_bad_ports) == 0
     error_message = "Catalog: ports must be tcp/<port> or udp/<port> with a port from 1 to 65535: ${join(", ", local.rule_bad_ports)}."
+  }
+  precondition {
+    condition     = length(local.rule_bad_app_names) == 0
+    error_message = "Catalog: app names must be DNS labels (lowercase letters, digits, single dashes, starting with a letter): ${join(", ", local.rule_bad_app_names)}."
+  }
+  precondition {
+    condition     = length(local.rule_empty_ports) == 0
+    error_message = "Catalog: ports must list at least one port: ${join(", ", local.rule_empty_ports)}."
+  }
+  precondition {
+    condition     = length(local.rule_repeated_entries) == 0
+    error_message = "Catalog: ports and access must not repeat an entry: ${join(", ", local.rule_repeated_entries)}."
   }
 }
 
@@ -66,6 +94,18 @@ output "instances" {
     condition     = length(local.rule_duplicate_compose_projects) == 0
     error_message = "Catalog: compose_project must be unique per host: ${join(", ", local.rule_duplicate_compose_projects)}."
   }
+  precondition {
+    condition     = length(local.rule_not_maps) == 0
+    error_message = "Catalog: instances and aliases must be maps (catalog v1; v0 listed instances): ${join(", ", local.rule_not_maps)}."
+  }
+  precondition {
+    condition     = length(local.rule_upstream_without_acme) == 0
+    error_message = "Catalog: an instance with an upstream needs site.acme (certificates are always delegated): ${join(", ", local.rule_upstream_without_acme)}."
+  }
+  precondition {
+    condition     = length(local.rule_bad_compose_projects) == 0
+    error_message = "Catalog: compose_project must be lowercase letters, digits, - and _: ${join(", ", local.rule_bad_compose_projects)}."
+  }
 }
 
 output "service_names" {
@@ -87,6 +127,10 @@ output "service_names" {
   precondition {
     condition     = length(local.rule_long_labels) == 0
     error_message = "Catalog: the challenge label (the FQDN with dots replaced by dashes) must be at most 63 characters: ${join(", ", local.rule_long_labels)}."
+  }
+  precondition {
+    condition     = length(local.rule_bad_alias_names) == 0
+    error_message = "Catalog: alias names must be DNS labels (lowercase letters, digits, dashes): ${join(", ", local.rule_bad_alias_names)}."
   }
 }
 
@@ -116,6 +160,14 @@ output "guests" {
     condition     = length(local.rule_duplicate_ips) == 0
     error_message = "Catalog: guest.ip must be unique per platform: ${join(", ", local.rule_duplicate_ips)}."
   }
+  precondition {
+    condition     = length(local.rule_unsupported_platforms) == 0
+    error_message = "Catalog: unsupported guest.platform: ${join(", ", local.rule_unsupported_platforms)}."
+  }
+  precondition {
+    condition     = length(local.rule_bad_vm_ids) == 0
+    error_message = "Catalog: vm_id must be an integer of at least 100: ${join(", ", local.rule_bad_vm_ids)}."
+  }
 }
 
 output "sign_in" {
@@ -125,5 +177,13 @@ output "sign_in" {
   precondition {
     condition     = length(local.rule_duplicate_registrations) == 0
     error_message = "Catalog: sign-in registration names must be unique: ${join(", ", local.rule_duplicate_registrations)}."
+  }
+  precondition {
+    condition     = length(local.rule_sign_in_without_identity) == 0
+    error_message = "Catalog: sign_in needs site.identity: ${join(", ", local.rule_sign_in_without_identity)}."
+  }
+  precondition {
+    condition     = length(local.rule_bad_redirect_paths) == 0
+    error_message = "Catalog: redirect_paths must list at least one path, each starting with /: ${join(", ", local.rule_bad_redirect_paths)}."
   }
 }

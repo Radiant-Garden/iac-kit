@@ -1,0 +1,11 @@
+# expect-output: apps
+# expect-error: ports must be tcp/<port> or udp/<port> with a port from 1 to 65535: wiki: https/443
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    ports: [https/443]
+    access: [staff]

@@ -1,0 +1,8 @@
+# expect-output: site
+# expect-error: environment names must be lowercase letters and digits, starting with a letter: Prod
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [Prod]
+apps: {}

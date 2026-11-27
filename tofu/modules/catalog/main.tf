@@ -8,12 +8,15 @@
 #
 # Conversions (tostring, tolist, ...) sit outside try(): try() only covers a
 # missing key, so a value of the wrong type fails loudly instead of falling
-# back to a default.
+# back to a default. A null where a value is required (`aliases: { wiki: }`,
+# `ports: [~]`) becomes "<null>" inside the rules, so the rule that owns it
+# reports it instead of a string template failing first.
 
 locals {
   raw      = var.catalog
   raw_site = try(local.raw.site, null)
   raw_apps = try(local.raw.apps, null)
+  null_s   = "<null>"
 
   # ── Structure ──────────────────────────────────────────────────────────────
 
@@ -44,16 +47,31 @@ locals {
     guest    = ["platform", "node", "vm_id", "ip"]
   }
 
+  supported = {
+    dns      = ["netbird-zone", "powerdns"]
+    acme     = ["hetzner"]
+    identity = ["entra"]
+    platform = ["proxmox-lxc"]
+  }
+
   app_names = local.raw_apps == null ? [] : sort(keys(local.raw_apps))
 
+  # instances and aliases are maps in v1 (v0 had a list of instances). Not a
+  # map → no names here, and rule_not_maps says why.
   app_instance_names = {
     for app in local.app_names : app =>
-    try(local.raw_apps[app].instances, null) == null ? [] : sort(keys(local.raw_apps[app].instances))
+    can(keys(local.raw_apps[app].instances)) ? sort(keys(local.raw_apps[app].instances)) : []
   }
   app_alias_names = {
     for app in local.app_names : app =>
-    try(local.raw_apps[app].aliases, null) == null ? [] : sort(keys(local.raw_apps[app].aliases))
+    can(keys(local.raw_apps[app].aliases)) ? sort(keys(local.raw_apps[app].aliases)) : []
   }
+  rule_not_maps = flatten([
+    for app in local.app_names : [
+      for k in ["instances", "aliases"] : "apps.${app}.${k}"
+      if try(local.raw_apps[app][k], null) != null && !can(keys(local.raw_apps[app][k]))
+    ]
+  ])
 
   # Every object in the catalog with its path and kind, to check keys once.
   objects = concat(
@@ -91,10 +109,27 @@ locals {
   ])
   rule_schema_version = try(local.raw.schema, null) == 1
 
+  # Lists of strings whose entries must not be null.
+  raw_lists = concat(
+    [for k in ["environments", "allow_from"] : { path = "site.${k}", value = try(local.raw_site[k], null) }],
+    [{ path = "site.dns.distribution_groups", value = try(local.raw_site.dns.distribution_groups, null) }],
+    flatten([
+      for app in local.app_names : concat(
+        [for k in ["ports", "access"] : { path = "apps.${app}.${k}", value = try(local.raw_apps[app][k], null) }],
+        [for k in ["redirect_paths", "id_token_claims"] : { path = "apps.${app}.sign_in.${k}", value = try(local.raw_apps[app].sign_in[k], null) }],
+        [for i in local.app_instance_names[app] : { path = "apps.${app}.instances.${i}.networks", value = try(local.raw_apps[app].instances[i].networks, null) }],
+      )
+    ]),
+  )
+  rule_null_entries = [
+    for l in local.raw_lists : l.path
+    if l.value != null && length([for x in try(tolist(l.value), []) : x if x == null]) > 0
+  ]
+
   # ── Site ───────────────────────────────────────────────────────────────────
 
   domain       = try(local.raw_site.domains.services, null) == null ? null : tostring(local.raw_site.domains.services)
-  environments = try(local.raw_site.environments, null) == null ? [] : tolist(local.raw_site.environments)
+  environments = try(local.raw_site.environments, null) == null ? [] : [for e in tolist(local.raw_site.environments) : e == null ? local.null_s : tostring(e)]
 
   site = {
     domains      = { services = local.domain }
@@ -117,50 +152,74 @@ locals {
 
   rule_environments = length(local.environments) > 0
 
+  rule_bad_environment_names = [for e in local.environments : e if !can(regex("^[a-z][a-z0-9]*$", e))]
+
+  rule_unsupported_providers = [
+    for k in ["dns", "acme", "identity"] :
+    "site.${k}.provider = ${coalesce(try(local.site[k].provider, null), local.null_s)} (supported: ${join(", ", local.supported[k])})"
+    if local.site[k] != null && !contains(local.supported[k], coalesce(try(local.site[k].provider, null), local.null_s))
+  ]
+
+  # App-role IDs are derived from this string; a trailing slash would change
+  # every one of them.
+  rule_bad_role_namespace = local.site.identity == null ? true : can(regex("^https://\\S*[^/]$", coalesce(local.site.identity.role_namespace, local.null_s)))
+
   # A missing domain is reported as a missing key; the placeholder only keeps
   # the string templates below from failing before that message is shown.
   fqdn_suffix = local.domain == null ? "invalid" : local.domain
 
   # ── Apps ───────────────────────────────────────────────────────────────────
 
-  port_regex = "^(tcp|udp)/[0-9]+$"
+  port_regex = "^(tcp|udp)/[1-9][0-9]{0,4}$"
 
   apps = {
     for app in local.app_names : app => {
-      description = tostring(try(local.raw_apps[app].description, ""))
-      ports       = try(local.raw_apps[app].ports, null) == null ? [] : tolist(local.raw_apps[app].ports)
-      access      = try(local.raw_apps[app].access, null) == null ? [] : tolist(local.raw_apps[app].access)
-      role        = tostring(try(local.raw_apps[app].role, app))
+      description = try(local.raw_apps[app].description, null) == null ? "" : tostring(local.raw_apps[app].description)
+      ports       = try(local.raw_apps[app].ports, null) == null ? [] : [for p in tolist(local.raw_apps[app].ports) : p == null ? local.null_s : tostring(p)]
+      access      = try(local.raw_apps[app].access, null) == null ? [] : [for g in tolist(local.raw_apps[app].access) : g == null ? local.null_s : tostring(g)]
+      role        = try(local.raw_apps[app].role, null) == null ? app : tostring(local.raw_apps[app].role)
+      group       = "app-${app}"
       size = try(local.raw_apps[app].size, null) == null ? null : {
         cores  = tonumber(try(local.raw_apps[app].size.cores, null))
         memory = tonumber(try(local.raw_apps[app].size.memory, null))
         disk   = tonumber(try(local.raw_apps[app].size.disk, null))
       }
       sign_in = try(local.raw_apps[app].sign_in, null) == null ? null : {
-        redirect_paths = try(local.raw_apps[app].sign_in.redirect_paths, null) == null ? [] : tolist(local.raw_apps[app].sign_in.redirect_paths)
+        redirect_paths = try(local.raw_apps[app].sign_in.redirect_paths, null) == null ? [] : [for p in tolist(local.raw_apps[app].sign_in.redirect_paths) : p == null ? local.null_s : tostring(p)]
         roles = {
-          for v in(try(local.raw_apps[app].sign_in.roles, null) == null ? [] : sort(keys(local.raw_apps[app].sign_in.roles))) :
+          for v in(can(keys(local.raw_apps[app].sign_in.roles)) ? sort(keys(local.raw_apps[app].sign_in.roles)) : []) :
           v => tostring(local.raw_apps[app].sign_in.roles[v])
         }
         local           = try(local.raw_apps[app].sign_in.local, null) == null ? null : tostring(local.raw_apps[app].sign_in.local)
         refresh_tokens  = try(local.raw_apps[app].sign_in.refresh_tokens, null) == null ? false : tobool(local.raw_apps[app].sign_in.refresh_tokens)
-        id_token_claims = try(local.raw_apps[app].sign_in.id_token_claims, null) == null ? [] : tolist(local.raw_apps[app].sign_in.id_token_claims)
+        id_token_claims = try(local.raw_apps[app].sign_in.id_token_claims, null) == null ? [] : [for c in tolist(local.raw_apps[app].sign_in.id_token_claims) : c == null ? local.null_s : tostring(c)]
       }
       instances = local.app_instance_names[app]
       aliases = {
-        for a in local.app_alias_names[app] : a => tostring(local.raw_apps[app].aliases[a])
+        for a in local.app_alias_names[app] : a =>
+        local.raw_apps[app].aliases[a] == null ? local.null_s : tostring(local.raw_apps[app].aliases[a])
       }
     }
   }
 
-  rule_empty_access = [for app in local.app_names : app if length(local.apps[app].access) == 0]
+  rule_bad_app_names = [for app in local.app_names : app if !can(regex("^[a-z][a-z0-9]*(-[a-z0-9]+)*$", app))]
+
+  # Absent keys are reported as missing; these catch present but empty lists.
+  rule_empty_access = [for app in local.app_names : app if try(local.raw_apps[app].access, null) != null && length(local.apps[app].access) == 0]
+  rule_empty_ports  = [for app in local.app_names : app if try(local.raw_apps[app].ports, null) != null && length(local.apps[app].ports) == 0]
 
   rule_bad_ports = flatten([
     for app in local.app_names : [
       for p in local.apps[app].ports : "${app}: ${p}"
-      if !can(regex(local.port_regex, p)) || !(try(tonumber(split("/", p)[1]), 0) >= 1 && try(tonumber(split("/", p)[1]), 0) <= 65535)
+      if !can(regex(local.port_regex, p)) || try(tonumber(split("/", p)[1]) > 65535, true)
     ]
   ])
+
+  rule_repeated_entries = [
+    for app in local.app_names : app
+    if length(distinct(local.apps[app].ports)) != length(local.apps[app].ports) ||
+    length(distinct(local.apps[app].access)) != length(local.apps[app].access)
+  ]
 
   # ── Instances ──────────────────────────────────────────────────────────────
 
@@ -173,6 +232,8 @@ locals {
       for name in local.app_instance_names[app] : {
         name = name
         app  = app
+        # Valid app and environment names contain no regex metacharacters;
+        # invalid ones are reported by their own rules.
         env  = try(regex(local.instance_regex[app], name)[0], null)
         host = tostring(try(local.raw_apps[app].instances[name].host, null))
         guest = try(local.raw_apps[app].instances[name].guest, null) == null ? null : {
@@ -182,7 +243,7 @@ locals {
           ip       = tostring(try(local.raw_apps[app].instances[name].guest.ip, null))
         }
         upstream        = tostring(try(local.raw_apps[app].instances[name].upstream, null))
-        networks        = try(local.raw_apps[app].instances[name].networks, null) == null ? [] : tolist(local.raw_apps[app].instances[name].networks)
+        networks        = try(local.raw_apps[app].instances[name].networks, null) == null ? [] : [for n in tolist(local.raw_apps[app].instances[name].networks) : n == null ? local.null_s : tostring(n)]
         compose_project = tostring(try(local.raw_apps[app].instances[name].compose_project, null))
       }
     ]
@@ -211,7 +272,7 @@ locals {
       networks = i.networks
       # Default = the instance name, so two instances of one app can share a
       # host. Only host instances have a Compose project.
-      compose_project = i.host == null ? null : coalesce(i.compose_project, i.name)
+      compose_project = i.host == null ? null : (i.compose_project == null ? i.name : i.compose_project)
       fqdn            = "${i.name}.${local.fqdn_suffix}"
       aliases         = [for a in local.alias_list : a.alias if a.instance == i.name && a.app == i.app]
       hostnames = concat(
@@ -231,20 +292,29 @@ locals {
     for name, g in { for i in local.instance_list : i.name => i.app... } : "${name} (${join(", ", g)})" if length(g) > 1
   ]
 
-  rule_host_xor_guest = [for i in local.instance_list : i.name if(i.host == null) == (i.guest == null)]
+  # An empty host counts as no host.
+  rule_host_xor_guest = [for i in local.instance_list : i.name if(i.host == null || i.host == "") == (i.guest == null)]
 
   upstream_regex = "^(([a-z0-9]([a-z0-9_-]*[a-z0-9])?)|127\\.0\\.0\\.1):([0-9]{1,5})$"
   rule_bad_upstreams = [
     for i in local.instance_list : "${i.name}: ${i.upstream}"
     if i.upstream != null && !(
       can(regex("^unix//\\S+$", i.upstream)) ||
-      (can(regex(local.upstream_regex, i.upstream)) && try(tonumber(regex(local.upstream_regex, i.upstream)[3]) >= 1 && tonumber(regex(local.upstream_regex, i.upstream)[3]) <= 65535, false))
+      try(tonumber(regex(local.upstream_regex, i.upstream)[3]) >= 1 && tonumber(regex(local.upstream_regex, i.upstream)[3]) <= 65535, false)
     )
   ]
+
+  # §4.3: ACME is always delegated, so Caddy (an upstream) needs site.acme.
+  rule_upstream_without_acme = local.site.acme != null ? [] : [for i in local.instance_list : i.name if i.upstream != null]
 
   rule_guest_only_host_fields = [
     for i in local.instance_list : i.name
     if i.guest != null && (i.compose_project != null || length(i.networks) > 0)
+  ]
+
+  rule_bad_compose_projects = [
+    for i in local.instance_list : "${i.name}: \"${i.compose_project}\""
+    if i.compose_project != null && !can(regex("^[a-z0-9][a-z0-9_-]*$", i.compose_project))
   ]
 
   rule_duplicate_compose_projects = [
@@ -253,6 +323,8 @@ locals {
   ]
 
   # ── Aliases and names ──────────────────────────────────────────────────────
+
+  rule_bad_alias_names = [for a in local.alias_list : "${a.app}: ${a.alias}" if !can(regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", a.alias))]
 
   rule_alias_targets = [
     for a in local.alias_list : "${a.app}: ${a.alias} -> ${a.instance}"
@@ -282,12 +354,14 @@ locals {
   }
 
   # The only formula for challenge names: Caddy's dns_challenge_override_domain
-  # and the _acme-challenge CNAME both take `target` from here.
+  # and the _acme-challenge CNAME both take `target` from here. With app,
+  # alias and environment names restricted to DNS labels (no dots), distinct
+  # names always give distinct labels.
   acme_names = local.site.acme == null ? {} : {
     for fqdn, s in local.service_names : fqdn => {
       name   = s.name
       label  = replace(fqdn, ".", "-")
-      target = "${replace(fqdn, ".", "-")}.${local.site.acme.challenge_zone}"
+      target = "${replace(fqdn, ".", "-")}.${coalesce(local.site.acme.challenge_zone, local.null_s)}"
     }
   }
 
@@ -304,10 +378,10 @@ locals {
     for app in local.app_names : [
       for proto in distinct([for p in local.apps[app].ports : split("/", p)[0] if can(regex(local.port_regex, p))]) : {
         key         = "${app}/${proto}"
-        name        = "${join(", ", local.apps[app].access)} to app-${app} (${proto})"
+        name        = "${join(", ", local.apps[app].access)} to ${local.apps[app].group} (${proto})"
         app         = app
         sources     = local.apps[app].access
-        destination = "app-${app}"
+        destination = local.apps[app].group
         protocol    = proto
         ports       = [for p in local.apps[app].ports : split("/", p)[1] if can(regex(local.port_regex, p)) && split("/", p)[0] == proto]
       }
@@ -327,10 +401,19 @@ locals {
 
   # ── Guests ─────────────────────────────────────────────────────────────────
 
-  guest_rows = [for i in local.instance_list : i if i.guest != null]
+  guest_rows = [
+    for i in local.instance_list : {
+      name     = i.name
+      app      = i.app
+      platform = coalesce(i.guest.platform, local.null_s)
+      vm_id    = i.guest.vm_id
+      vm_id_s  = coalesce(tostring(i.guest.vm_id), local.null_s)
+      ip       = coalesce(i.guest.ip, local.null_s)
+    } if i.guest != null
+  ]
 
   guests = {
-    for name, g in { for i in local.guest_rows : i.name => i... } : name => {
+    for name, g in { for i in local.instance_list : i.name => i... if i.guest != null } : name => {
       app      = g[0].app
       platform = g[0].guest.platform
       node     = g[0].guest.node
@@ -340,17 +423,25 @@ locals {
     }
   }
 
+  rule_unsupported_platforms = [
+    for g in local.guest_rows : "${g.name}: ${g.platform} (supported: ${join(", ", local.supported.platform)})"
+    if !contains(local.supported.platform, g.platform)
+  ]
+  rule_bad_vm_ids = [
+    for g in local.guest_rows : "${g.name}: ${g.vm_id_s}"
+    if !try(g.vm_id >= 100 && floor(g.vm_id) == g.vm_id, false)
+  ]
   rule_duplicate_vm_ids = [
-    for k, g in { for i in local.guest_rows : "${i.guest.platform}/${i.guest.vm_id}" => i.name... } :
+    for k, g in { for r in local.guest_rows : "${r.platform}/${r.vm_id_s}" => r.name... } :
     "${k} (${join(", ", g)})" if length(g) > 1
   ]
   rule_duplicate_ips = [
-    for k, g in { for i in local.guest_rows : "${i.guest.platform}/${i.guest.ip}" => i.name... } :
+    for k, g in { for r in local.guest_rows : "${r.platform}/${r.ip}" => r.name... } :
     "${k} (${join(", ", g)})" if length(g) > 1
   ]
   rule_bad_ips = [
-    for i in local.guest_rows : "${i.name}: ${i.guest.ip}"
-    if !can(regex("^([0-9]{1,3}\\.){3}[0-9]{1,3}$", i.guest.ip)) || !can(cidrhost("${i.guest.ip}/32", 0))
+    for g in local.guest_rows : "${g.name}: ${g.ip}"
+    if !can(regex("^([0-9]{1,3}\\.){3}[0-9]{1,3}$", g.ip)) || !can(cidrhost("${g.ip}/32", 0))
   ]
 
   # ── Sign-in ────────────────────────────────────────────────────────────────
@@ -398,6 +489,17 @@ locals {
       id_token_claims = local.apps[g[0].app].sign_in.id_token_claims
     }
   }
+
+  sign_in_apps = [for app in local.app_names : app if local.apps[app].sign_in != null]
+
+  rule_sign_in_without_identity = local.site.identity != null ? [] : local.sign_in_apps
+
+  rule_bad_redirect_paths = flatten([
+    for app in local.sign_in_apps : concat(
+      length(local.apps[app].sign_in.redirect_paths) == 0 ? ["${app}: (none)"] : [],
+      [for p in local.apps[app].sign_in.redirect_paths : "${app}: ${p}" if !startswith(p, "/")],
+    )
+  ])
 
   rule_duplicate_registrations = [
     for k, g in { for r in local.sign_in_rows : r.key => r.app... } : "${k} (${join(", ", g)})" if length(g) > 1

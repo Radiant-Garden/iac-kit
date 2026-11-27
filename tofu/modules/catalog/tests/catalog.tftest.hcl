@@ -6,7 +6,7 @@
 #
 # Every catalog in examples/catalog/invalid/ has a run below that expects the
 # output named in its "# expect-output:" header to fail the plan.
-# ci/check-invalid-examples.sh checks the message and that this list is
+# ci/check-examples.sh checks the message and that this list is
 # complete.
 
 run "valid" {
@@ -59,7 +59,6 @@ run "invalid_access_empty" {
 
   expect_failures = [output.apps]
 }
-
 run "invalid_alias_duplicate" {
   command = plan
 
@@ -69,7 +68,6 @@ run "invalid_alias_duplicate" {
 
   expect_failures = [output.service_names]
 }
-
 run "invalid_alias_is_instance" {
   command = plan
 
@@ -79,7 +77,33 @@ run "invalid_alias_is_instance" {
 
   expect_failures = [output.service_names]
 }
+run "invalid_alias_label_length" {
+  command = plan
 
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/alias-label-length.yml"))
+  }
+
+  expect_failures = [output.service_names]
+}
+run "invalid_alias_name" {
+  command = plan
+
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/alias-name.yml"))
+  }
+
+  expect_failures = [output.service_names]
+}
+run "invalid_alias_target_empty" {
+  command = plan
+
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/alias-target-empty.yml"))
+  }
+
+  expect_failures = [output.service_names]
+}
 run "invalid_alias_target" {
   command = plan
 
@@ -89,7 +113,15 @@ run "invalid_alias_target" {
 
   expect_failures = [output.service_names]
 }
+run "invalid_app_name" {
+  command = plan
 
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/app-name.yml"))
+  }
+
+  expect_failures = [output.apps]
+}
 run "invalid_compose_project_duplicate" {
   command = plan
 
@@ -99,7 +131,24 @@ run "invalid_compose_project_duplicate" {
 
   expect_failures = [output.instances]
 }
+run "invalid_compose_project_format" {
+  command = plan
 
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/compose-project-format.yml"))
+  }
+
+  expect_failures = [output.instances]
+}
+run "invalid_environment_name" {
+  command = plan
+
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/environment-name.yml"))
+  }
+
+  expect_failures = [output.site]
+}
 run "invalid_environments_empty" {
   command = plan
 
@@ -109,7 +158,6 @@ run "invalid_environments_empty" {
 
   expect_failures = [output.site]
 }
-
 run "invalid_guest_host_fields" {
   command = plan
 
@@ -119,7 +167,6 @@ run "invalid_guest_host_fields" {
 
   expect_failures = [output.instances]
 }
-
 run "invalid_guest_ip" {
   command = plan
 
@@ -129,7 +176,24 @@ run "invalid_guest_ip" {
 
   expect_failures = [output.guests]
 }
+run "invalid_guest_networks" {
+  command = plan
 
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/guest-networks.yml"))
+  }
+
+  expect_failures = [output.instances]
+}
+run "invalid_guest_platform" {
+  command = plan
+
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/guest-platform.yml"))
+  }
+
+  expect_failures = [output.guests]
+}
 run "invalid_host_and_guest" {
   command = plan
 
@@ -139,7 +203,15 @@ run "invalid_host_and_guest" {
 
   expect_failures = [output.instances]
 }
+run "invalid_host_missing" {
+  command = plan
 
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/host-missing.yml"))
+  }
+
+  expect_failures = [output.instances]
+}
 run "invalid_instance_duplicate" {
   command = plan
 
@@ -149,7 +221,6 @@ run "invalid_instance_duplicate" {
 
   expect_failures = [output.instances]
 }
-
 run "invalid_instance_name" {
   command = plan
 
@@ -159,7 +230,15 @@ run "invalid_instance_name" {
 
   expect_failures = [output.instances]
 }
+run "invalid_instances_list" {
+  command = plan
 
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/instances-list.yml"))
+  }
+
+  expect_failures = [output.instances]
+}
 run "invalid_ip_duplicate" {
   command = plan
 
@@ -169,7 +248,6 @@ run "invalid_ip_duplicate" {
 
   expect_failures = [output.guests]
 }
-
 run "invalid_label_length" {
   command = plan
 
@@ -179,7 +257,6 @@ run "invalid_label_length" {
 
   expect_failures = [output.service_names]
 }
-
 run "invalid_missing_key" {
   command = plan
 
@@ -189,7 +266,24 @@ run "invalid_missing_key" {
 
   expect_failures = [output.site]
 }
+run "invalid_null_entry" {
+  command = plan
 
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/null-entry.yml"))
+  }
+
+  expect_failures = [output.site]
+}
+run "invalid_port_format" {
+  command = plan
+
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/port-format.yml"))
+  }
+
+  expect_failures = [output.apps]
+}
 run "invalid_port_range" {
   command = plan
 
@@ -199,7 +293,51 @@ run "invalid_port_range" {
 
   expect_failures = [output.apps]
 }
+run "invalid_ports_empty" {
+  command = plan
 
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/ports-empty.yml"))
+  }
+
+  expect_failures = [output.apps]
+}
+run "invalid_provider_unsupported" {
+  command = plan
+
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/provider-unsupported.yml"))
+  }
+
+  expect_failures = [output.site]
+}
+run "invalid_redirect_path" {
+  command = plan
+
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/redirect-path.yml"))
+  }
+
+  expect_failures = [output.sign_in]
+}
+run "invalid_repeated_entry" {
+  command = plan
+
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/repeated-entry.yml"))
+  }
+
+  expect_failures = [output.apps]
+}
+run "invalid_role_namespace" {
+  command = plan
+
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/role-namespace.yml"))
+  }
+
+  expect_failures = [output.site]
+}
 run "invalid_schema_version" {
   command = plan
 
@@ -209,7 +347,6 @@ run "invalid_schema_version" {
 
   expect_failures = [output.site]
 }
-
 run "invalid_sign_in_duplicate" {
   command = plan
 
@@ -219,7 +356,15 @@ run "invalid_sign_in_duplicate" {
 
   expect_failures = [output.sign_in]
 }
+run "invalid_sign_in_without_identity" {
+  command = plan
 
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/sign-in-without-identity.yml"))
+  }
+
+  expect_failures = [output.sign_in]
+}
 run "invalid_unknown_key" {
   command = plan
 
@@ -229,7 +374,6 @@ run "invalid_unknown_key" {
 
   expect_failures = [output.site]
 }
-
 run "invalid_upstream_format" {
   command = plan
 
@@ -239,12 +383,38 @@ run "invalid_upstream_format" {
 
   expect_failures = [output.instances]
 }
+run "invalid_upstream_port" {
+  command = plan
 
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/upstream-port.yml"))
+  }
+
+  expect_failures = [output.instances]
+}
+run "invalid_upstream_without_acme" {
+  command = plan
+
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/upstream-without-acme.yml"))
+  }
+
+  expect_failures = [output.instances]
+}
 run "invalid_vm_id_duplicate" {
   command = plan
 
   variables {
     catalog = yamldecode(file("../../../examples/catalog/invalid/vm-id-duplicate.yml"))
+  }
+
+  expect_failures = [output.guests]
+}
+run "invalid_vm_id" {
+  command = plan
+
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/vm-id.yml"))
   }
 
   expect_failures = [output.guests]

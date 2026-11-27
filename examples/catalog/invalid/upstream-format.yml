@@ -5,6 +5,7 @@ schema: 1
 site:
   domains: { services: svc.example.org }
   environments: [prod]
+  acme: { provider: hetzner, challenge_zone: acme.example.com }
 apps:
   wiki:
     ports: [tcp/443]

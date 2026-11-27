@@ -1,0 +1,13 @@
+# expect-output: instances
+# expect-error: an instance with an upstream needs site.acme (certificates are always delegated): wiki-01-prod
+# schema: valid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    ports: [tcp/443]
+    access: [staff]
+    instances:
+      wiki-01-prod: { host: apps-01, upstream: "wiki:8080" }

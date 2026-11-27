@@ -1,0 +1,9 @@
+# expect-output: site
+# expect-error: unsupported provider: site.dns.provider = netbird-zon (supported: netbird-zone, powerdns)
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+  dns: { provider: netbird-zon }
+apps: {}
