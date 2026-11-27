@@ -12,6 +12,8 @@ a denylist of customer names (a denylist would itself publish them):
   a dotted token whose first label is a known code root is skipped as well.
 
 Usage: ci/allowlist-check.py [files...]   (default: every file git knows about)
+       ci/allowlist-check.py --commits <revision range>   (commit messages)
+       ci/allowlist-check.py --self-test
 """
 
 import ipaddress
@@ -56,12 +58,12 @@ CODE_ROOTS = {
     "var", "local", "locals", "module", "each", "data", "output", "path",
     "self", "count", "terraform", "tofu", "run", "item", "ansible", "site",
     "apps", "instances", "catalog", "sign_in", "guest", "guests", "policies",
-    "domains",
+    "domains", "raw",
 }
 
 IPV4 = re.compile(r"(?<![\w.])(\d{1,3}(?:\.\d{1,3}){3})(?:/(\d{1,2}))?(?![\w.])")
 IPV6 = re.compile(r"(?<![\w:.])([0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7})(?:/(\d{1,3}))?(?![\w:])")
-NAME = re.compile(r"(?<![\w.@-])((?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+([A-Za-z]{2,63}))(?![\w-])")
+NAME = re.compile(r"(?<![\w@-])(?<![\w-]\.)((?:_?[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+([A-Za-z]{2,63}))(?![\w-])")
 EMAIL_DOMAIN = re.compile(r"@((?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+([A-Za-z]{2,63}))\b")
 
 
@@ -113,10 +115,16 @@ def check_file(path, allowed):
             if tld.lower() not in TLDS:
                 continue
             labels = name.split(".")
-            if labels[0].lower() in CODE_ROOTS:
-                continue
             if len(labels) == 2 and len(labels[0]) == 1:
                 continue  # attribute access on a loop variable: i.app, a.host
+            # Code paths (module.catalog.site, site.domains.services) start with
+            # a code root; drop leading code roots and check what is left, so
+            # a customer domain behind "apps." is still caught.
+            while len(labels) > 1 and labels[0].lower() in CODE_ROOTS:
+                labels = labels[1:]
+            if len(labels) < 2:
+                continue
+            name = ".".join(labels)
             if not domain_allowed(name, allowed):
                 problems.append(f"{rel}:{lineno}: name {name}")
     return problems
@@ -133,11 +141,19 @@ def self_test():
         "mail " + "ops@" + "customer" + ".io",
         "peer x." + "customer" + ".internal",
         "range " + ":".join(["2a01", "4f8", "1", "", "/64"]),
+        "host: apps." + "customer" + ".de",
+        "https://site." + "customer" + ".org/x",
+        "data." + "customer" + ".io",
+        "_acme-challenge.netbox." + "customer" + ".de",
+        "cert *." + "customer" + ".de",
+        "commit by someone@" + "customer" + ".de",
     ]
     clean = [
         "svc.example.org 192.0.2.11 100.64.0.0/10 127.0.0.1:8080 2001:db8::1",
         "module.catalog.site main.tf catalog.yml version 1.11.5 at 11:35:00 i.app",
         "https://github.com/opentofu/setup-opentofu",
+        "_acme-challenge.wiki.svc.example.org *.example.com local.apps[app].sign_in.local",
+        "site.domains.services apps.wiki.role sign_in.local",
     ]
     allowed = load_allowed_domains()
     ok = True
@@ -153,9 +169,36 @@ def self_test():
     return 0 if ok else 1
 
 
+def check_commit_messages(allowed, rev_range):
+    """Commit messages are public too. Checks every message in rev_range."""
+    import tempfile
+    log = subprocess.run(
+        ["git", "log", "--format=%H%n%B%n--end--", rev_range],
+        cwd=REPO, check=True, capture_output=True, text=True,
+    ).stdout
+    problems = []
+    with tempfile.TemporaryDirectory() as d:
+        for entry in log.split("--end--\n"):
+            if not entry.strip():
+                continue
+            sha, _, body = entry.partition("\n")
+            f = pathlib.Path(d) / "msg"
+            f.write_text(body)
+            problems += [f"commit {sha[:12]}:{p.split(':', 1)[1]}" for p in check_file(f, allowed)]
+    for p in problems:
+        print(p)
+    if problems:
+        print(f"{len(problems)} name(s) or address(es) outside the allowlist in commit messages", file=sys.stderr)
+        return 1
+    print(f"allowlist: commit messages in {rev_range} clean")
+    return 0
+
+
 def main(argv):
     if argv == ["--self-test"]:
         return self_test()
+    if len(argv) == 2 and argv[0] == "--commits":
+        return check_commit_messages(load_allowed_domains(), argv[1])
     allowed = load_allowed_domains()
     files = [pathlib.Path(a).resolve() for a in argv] if argv else tracked_files()
     problems = sorted(set(p for f in files if f.is_file() for p in check_file(f, allowed)))

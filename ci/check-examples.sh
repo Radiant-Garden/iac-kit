@@ -18,6 +18,8 @@ tests="$repo/tofu/modules/catalog/tests/catalog.tftest.hcl"
 read -r -a check_jsonschema <<<"${CHECK_JSONSCHEMA:-check-jsonschema}"
 
 failures=0
+stderr_file=$(mktemp)
+trap 'rm -f "$stderr_file"' EXIT
 fail() { echo "FAIL $*" >&2; failures=$((failures + 1)); }
 
 header() { sed -n "s/^# $1: //p" "$2" | head -n 1; }
@@ -44,11 +46,13 @@ for f in "$examples"/invalid/*.yml; do
   fi
 
   # -json: diagnostics arrive unwrapped, so the message can be matched as is.
-  if out=$(tofu -chdir="$examples" plan -input=false -json -var "catalog_file=invalid/$name" 2>&1); then
+  # stdout is JSON lines; anything on stderr is kept apart and shown on failure.
+  if out=$(tofu -chdir="$examples" plan -input=false -json -var "catalog_file=invalid/$name" 2>"$stderr_file"); then
     fail "$name: plan succeeded"
     continue
   fi
-  details=$(jq -r 'select(.type == "diagnostic" and .diagnostic.severity == "error") | .diagnostic.detail' <<<"$out")
+  details=$(jq -Rr 'fromjson? | select(.type == "diagnostic" and .diagnostic.severity == "error") | .diagnostic.detail' <<<"$out")
+  [[ -s $stderr_file ]] && details+=$'\n'"$(cat "$stderr_file")"
   if grep -qF -- "$want_error" <<<"$details"; then
     echo "ok   $name fails the plan: $want_error"
   else

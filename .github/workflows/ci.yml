@@ -10,7 +10,6 @@ permissions:
 
 env:
   TOFU_VERSION: 1.11.5
-  CHECK_JSONSCHEMA: pipx run check-jsonschema==0.33.0
 
 jobs:
   tofu:
@@ -42,6 +41,8 @@ jobs:
         with:
           tofu_version: ${{ env.TOFU_VERSION }}
           tofu_wrapper: false
+      - name: install check-jsonschema
+        run: pipx install check-jsonschema==0.33.0
       - name: check examples
         run: ci/check-examples.sh
 
@@ -52,7 +53,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: self-test
         run: python3 ci/allowlist-check.py --self-test
       - name: check every tracked file
         run: python3 ci/allowlist-check.py
+      - name: check commit messages
+        run: python3 ci/allowlist-check.py --commits HEAD

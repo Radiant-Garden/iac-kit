@@ -65,7 +65,9 @@ ci/validate.sh                                   # tofu validate, every module a
 tofu -chdir=tofu/modules/catalog init -backend=false
 tofu -chdir=tofu/modules/catalog test            # output = expected.json, invalid catalogs fail
 CHECK_JSONSCHEMA="pipx run check-jsonschema==0.33.0" ci/check-examples.sh
+python3 ci/allowlist-check.py --self-test        # the checker still catches what it is for
 python3 ci/allowlist-check.py                    # no names or addresses outside ci/allowlist.txt
+python3 ci/allowlist-check.py --commits HEAD     # same for commit messages
 ```
 
 `ci/check-examples.sh` plans every catalog in `examples/catalog/invalid/` and
@@ -78,7 +80,9 @@ This repository is public. Examples use `example.org` / `example.com` and the
 documentation address ranges (RFC 5737, RFC 6598) only. CI enforces an
 allowlist (`ci/allowlist.txt`, `ci/allowlist-check.py`): every IP literal and
 every name under a real TLD must be allowed, or the check fails. Add vendor
-hosts to the allowlist; never add anything that names a customer.
+hosts to the allowlist; never add anything that names a customer. Bare host
+names without a domain (`apps-01`) cannot be told apart from ordinary words,
+so they are not checked: review for them.
 
 Changes go through a pull request with green CI.
 

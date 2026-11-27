@@ -36,9 +36,9 @@ order.
 | Output | Key | Value |
 |---|---|---|
 | `site` | – | `domains.services`, `environments`, `dns`, `acme`, `identity` (each `null` when absent), `allow_from` (default `["100.64.0.0/10"]`) |
-| `apps` | app | `description` (default `""`), `ports`, `access`, `role` (default: the app name), `size`, `sign_in` (defaults: `roles = {}`, `local = null`, `refresh_tokens = false`, `id_token_claims = []`), `instances` (sorted names), `aliases` |
+| `apps` | app | `description` (default `""`), `ports`, `access`, `role` (default: the app name; the Ansible role, not a sign-in role), `group` (`app-<app>`, the NetBird group of the app's peers), `size`, `sign_in` (defaults: `roles = {}`, `local = null`, `refresh_tokens = false`, `id_token_claims = []`), `instances` (sorted names), `aliases` |
 | `instances` | instance | `name`, `app`, `env`, `host` or `guest`, `upstream`, `networks`, `compose_project` (host instances only, default: the instance name), `fqdn`, `aliases` (sorted), `hostnames` (the instance's FQDN first, then its aliases' FQDNs, sorted by alias) |
-| `service_names` | FQDN | `{ type = "CNAME", name, instance, target }`. `name` is relative to `site.domains.services`. An alias's `target` is its instance's FQDN; an instance's `target` is `null`, since it points at the NetBird peer of the same name, whose DNS label only the DNS driver can look up |
+| `service_names` | FQDN | `{ type = "CNAME", name, instance, target }`. `name` is relative to `site.domains.services`. An alias's `target` is its instance's FQDN; an instance's `target` is `null`, since it points at the NetBird peer of the same name, whose DNS label only the DNS driver can look up (a driver other than the NetBird zone needs the peer domain as its own input) |
 | `acme_names` | FQDN | `{ name, label, target }`: `label = replace(fqdn, ".", "-")`, `target = "<label>.<site.acme.challenge_zone>"`. The only formula for challenge names: the `_acme-challenge` CNAME and Caddy's `dns_challenge_override_domain` both use `target`. Empty without `site.acme` |
 | `policies` | `<app>/<proto>` | `{ name, app, sources, destination, protocol, ports }`, one per app and protocol; `name = "<access, joined by ", "> to app-<app> (<proto>)"`, `destination = "app-<app>"` |
 | `guests` | instance | `{ app, platform, node, vm_id, ip, size }` for instances with `guest` |
@@ -52,12 +52,16 @@ names what violates it. A module without resources can't fail a plan from a
 
 | Output | Rule |
 |---|---|
-| `site` | `schema` is 1; no unknown keys; no missing required keys; `site.environments` not empty |
-| `apps` | `access` not empty; ports are `tcp/<n>` or `udp/<n>` with 1 ≤ n ≤ 65535 |
-| `instances` | names are `<app>-<nn>-<env>` with `<env>` from `site.environments`; unique across apps; exactly one of `host` and `guest`; `upstream` is `<name>:<port>`, `127.0.0.1:<port>` or `unix//<path>`; `compose_project` and `networks` only on host instances; `compose_project` unique per host |
-| `service_names` | an alias points at an instance of its own app; an alias equals no instance name; aliases are unique across apps; every challenge label is at most 63 characters |
-| `guests` | `ip` is IPv4; `vm_id` and `ip` unique per platform |
-| `sign_in` | registration names are unique (an environment called `local` would collide with `<app>-local`) |
+| `site` | `schema` is 1; no unknown keys; no missing required keys; no null list entries; `site.environments` not empty, each lowercase letters and digits; supported `dns`, `acme` and `identity` providers; `role_namespace` an `https://` URL without a trailing slash |
+| `apps` | app names are DNS labels; `access` and `ports` not empty when given, without repeats; ports are `tcp/<n>` or `udp/<n>` with 1 ≤ n ≤ 65535 |
+| `instances` | `instances` and `aliases` are maps; names are `<app>-<nn>-<env>` with `<env>` from `site.environments`; unique across apps; exactly one of `host` (non-empty) and `guest`; `upstream` is `<name>:<port>`, `127.0.0.1:<port>` or `unix//<path>`; an upstream needs `site.acme`; `compose_project` and `networks` only on host instances; `compose_project` is lowercase letters, digits, `-`, `_` and unique per host |
+| `service_names` | alias names are DNS labels; an alias points at an instance of its own app; an alias equals no instance name; aliases are unique across apps; every challenge label is at most 63 characters |
+| `guests` | supported `platform`; `vm_id` an integer ≥ 100; `ip` is IPv4; `vm_id` and `ip` unique per platform |
+| `sign_in` | `sign_in` needs `site.identity`; `redirect_paths` not empty, each starting with `/`; registration names are unique (an environment called `local` would collide with `<app>-local`) |
+
+Because app, alias and environment names are DNS labels (no dots), distinct
+names always give distinct challenge labels, so `acme_names` targets are
+unique without a rule of their own.
 
 Every rule has an invalid catalog in
 [`examples/catalog/invalid/`](../../../examples/catalog/invalid/) that must
@@ -68,9 +72,15 @@ The module is the authoritative validator. The JSON Schema
 covers structure and types for editors and pre-commit, and is strict
 (`additionalProperties: false`). It does not restate cross-field rules. The
 module also rejects unknown keys, because its input is `any` (an object type
-would silently drop a misspelled key). A value of the wrong type (`instances`
-as a list, `refresh_tokens: maybe`) fails the plan with OpenTofu's own type
-error rather than a catalog message.
+would silently drop a misspelled key). A value of the wrong type
+(`refresh_tokens: maybe`, `networks: edge`) fails the plan with OpenTofu's own
+type error rather than a catalog message. A null where a value is required
+(`aliases: { wiki: }`) is shown as `<null>` in the message of the rule that
+owns it.
+
+Rules sit on the output they concern. In a normal plan every output is
+evaluated, used or not; `tofu plan -target=...` evaluates only the outputs the
+target depends on, and skips the rules on the others.
 
 ## How it is built
 
