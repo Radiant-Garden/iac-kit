@@ -1,0 +1,11 @@
+# expect-output: apps
+# expect-error: ports and access must not repeat an entry: wiki
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    ports: [tcp/443]
+    access: [staff, staff]

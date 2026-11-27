@@ -1,0 +1,13 @@
+# expect-output: instances
+# expect-error: compose_project must be lowercase letters, digits, - and _: wiki-01-prod: ""
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    ports: [tcp/443]
+    access: [staff]
+    instances:
+      wiki-01-prod: { host: apps-01, compose_project: "" }

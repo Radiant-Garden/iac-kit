@@ -1,0 +1,14 @@
+# Internal planning documents: they name a customer and must never be published.
+/int_docs/
+
+# OpenTofu working files. The kit has no state; examples and tests only plan.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/

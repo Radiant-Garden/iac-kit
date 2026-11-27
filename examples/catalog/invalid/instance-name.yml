@@ -1,0 +1,13 @@
+# expect-output: instances
+# expect-error: instance names must be <app>-<nn>-<env> with <env> from site.environments: wiki: wiki-01-qa
+# schema: valid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    ports: [tcp/443]
+    access: [staff]
+    instances:
+      wiki-01-qa: { host: apps-01 }

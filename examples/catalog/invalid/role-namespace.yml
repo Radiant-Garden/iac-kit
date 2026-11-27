@@ -1,0 +1,9 @@
+# expect-output: site
+# expect-error: site.identity.role_namespace must be an https:// URL without a trailing slash
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+  identity: { provider: entra, role_namespace: "https://example.org/apps/" }
+apps: {}

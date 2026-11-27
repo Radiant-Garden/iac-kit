@@ -1,0 +1,13 @@
+# expect-output: instances
+# expect-error: an instance needs exactly one of host and guest: wiki-01-prod
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    ports: [tcp/443]
+    access: [staff]
+    instances:
+      wiki-01-prod: { host: "" }

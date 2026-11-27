@@ -1,0 +1,14 @@
+# expect-output: sign_in
+# expect-error: sign_in needs site.identity: wiki
+# schema: valid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    ports: [tcp/443]
+    access: [staff]
+    sign_in: { redirect_paths: [/] }
+    instances:
+      wiki-01-prod: { host: apps-01 }

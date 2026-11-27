@@ -1,0 +1,11 @@
+# expect-output: apps
+# expect-error: app names must be DNS labels (lowercase letters, digits, single dashes, starting with a letter): w.iki
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  w.iki:
+    ports: [tcp/443]
+    access: [staff]

@@ -1,0 +1,14 @@
+# expect-output: service_names
+# expect-error: must be at most 63 characters: the-documentation-portal-for-everyone.internal-services.example.org
+# schema: valid
+schema: 1
+site:
+  domains: { services: internal-services.example.org }
+  environments: [prod]
+apps:
+  docs:
+    ports: [tcp/443]
+    access: [staff]
+    instances:
+      docs-01-prod: { host: apps-01 }
+    aliases: { the-documentation-portal-for-everyone: docs-01-prod }

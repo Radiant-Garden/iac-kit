@@ -1,0 +1,14 @@
+# expect-output: service_names
+# expect-error: an alias must point at an instance of its own app: wiki: wiki -> <null>
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    ports: [tcp/443]
+    access: [staff]
+    instances:
+      wiki-01-prod: { host: apps-01 }
+    aliases: { wiki: ~ }

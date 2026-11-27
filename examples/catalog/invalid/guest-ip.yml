@@ -1,0 +1,14 @@
+# expect-output: guests
+# expect-error: guest.ip must be an IPv4 address: resolver-01-prod: 192.0.2.300
+# schema: valid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  resolver:
+    ports: [udp/53]
+    access: [staff]
+    instances:
+      resolver-01-prod:
+        guest: { platform: proxmox-lxc, node: pve-01, vm_id: 201, ip: 192.0.2.300 }

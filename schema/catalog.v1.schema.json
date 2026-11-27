@@ -1,0 +1,423 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "iac-kit catalog, schema version 1",
+  "description": "Structure and types of catalog.yml. Cross-field rules (instance names per app and environment, alias targets, uniqueness, label length) are enforced by the OpenTofu module tofu/modules/catalog, which is the authoritative gate.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "site",
+    "apps"
+  ],
+  "properties": {
+    "schema": {
+      "description": "Catalog schema version.",
+      "const": 1
+    },
+    "site": {
+      "$ref": "#/$defs/site"
+    },
+    "apps": {
+      "description": "Apps by name. An app says what is offered and to whom.",
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/app_name"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/app"
+      }
+    },
+    "conventions": {
+      "$ref": "#/$defs/conventions"
+    }
+  },
+  "$defs": {
+    "app_name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "maxLength": 40
+    },
+    "environment": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*$",
+      "maxLength": 16
+    },
+    "instance_name": {
+      "description": "<app>-<nn>-<env>; the app prefix and the environment are checked by the module.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*-[0-9]{2}-[a-z][a-z0-9]*$",
+      "maxLength": 63
+    },
+    "dns_label_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+      "maxLength": 63
+    },
+    "domain": {
+      "type": "string",
+      "pattern": "^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,63}$",
+      "maxLength": 253
+    },
+    "group": {
+      "description": "A NetBird group name.",
+      "type": "string",
+      "minLength": 1
+    },
+    "port": {
+      "type": "string",
+      "pattern": "^(tcp|udp)/[1-9][0-9]{0,4}$"
+    },
+    "cidr": {
+      "type": "string",
+      "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}/[0-9]{1,2}$"
+    },
+    "ipv4": {
+      "type": "string",
+      "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}$"
+    },
+    "upstream": {
+      "description": "Where Caddy forwards to: name:port (a Compose service), 127.0.0.1:port, or unix//<socket path>.",
+      "type": "string",
+      "pattern": "^((([a-z0-9]([a-z0-9_-]*[a-z0-9])?)|127\\.0\\.0\\.1):[0-9]{1,5}|unix//[^\\s]+)$"
+    },
+    "site": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domains",
+        "environments"
+      ],
+      "properties": {
+        "domains": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "services"
+          ],
+          "properties": {
+            "services": {
+              "description": "Domain under which instances and aliases are published.",
+              "$ref": "#/$defs/domain"
+            }
+          }
+        },
+        "environments": {
+          "description": "Allowed <env> suffixes of instance names.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/environment"
+          }
+        },
+        "dns": {
+          "description": "Driver for service names.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider"
+          ],
+          "properties": {
+            "provider": {
+              "enum": [
+                "netbird-zone",
+                "powerdns"
+              ]
+            },
+            "distribution_groups": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/group"
+              }
+            }
+          }
+        },
+        "acme": {
+          "description": "DNS-01 through a delegated challenge zone.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider",
+            "challenge_zone"
+          ],
+          "properties": {
+            "provider": {
+              "enum": [
+                "hetzner"
+              ]
+            },
+            "challenge_zone": {
+              "$ref": "#/$defs/domain"
+            }
+          }
+        },
+        "allow_from": {
+          "description": "Source ranges Caddy answers; everything else gets 403. Default: 100.64.0.0/10.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/cidr"
+          }
+        },
+        "identity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider",
+            "role_namespace"
+          ],
+          "properties": {
+            "provider": {
+              "enum": [
+                "entra"
+              ]
+            },
+            "role_namespace": {
+              "description": "Base URL for app-role IDs. Changing it changes every role ID.",
+              "type": "string",
+              "pattern": "^https://[^\\s]+[^/]$"
+            }
+          }
+        }
+      }
+    },
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ports",
+        "access"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "ports": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/port"
+          }
+        },
+        "access": {
+          "description": "NetBird groups that may reach the app.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/group"
+          }
+        },
+        "role": {
+          "description": "Ansible role that deploys the app. Default: the app name.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "size": {
+          "description": "Resources of each guest of this app.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cores",
+            "memory",
+            "disk"
+          ],
+          "properties": {
+            "cores": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "memory": {
+              "description": "MiB",
+              "type": "integer",
+              "minimum": 1
+            },
+            "disk": {
+              "description": "GiB",
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        "sign_in": {
+          "$ref": "#/$defs/sign_in"
+        },
+        "instances": {
+          "description": "Instances by name. An instance says where the app runs.",
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/instance_name"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/instance"
+          }
+        },
+        "aliases": {
+          "description": "Alias name -> instance name of the same app.",
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/dns_label_name"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/instance_name"
+          }
+        }
+      }
+    },
+    "sign_in": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "redirect_paths"
+      ],
+      "properties": {
+        "redirect_paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^/"
+          }
+        },
+        "roles": {
+          "description": "App-role value -> description.",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.-]*$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "local": {
+          "description": "Base URL on a developer machine; adds the registration <app>-local.",
+          "type": "string",
+          "pattern": "^http://(localhost|127\\.0\\.0\\.1)(:[0-9]{1,5})?$"
+        },
+        "refresh_tokens": {
+          "type": "boolean"
+        },
+        "id_token_claims": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "instance": {
+      "type": "object",
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "host"
+          ],
+          "not": {
+            "required": [
+              "guest"
+            ]
+          }
+        },
+        {
+          "required": [
+            "guest"
+          ],
+          "not": {
+            "required": [
+              "host"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "host": {
+          "description": "Inventory name of the shared host; the sidecar runs as containers in the app's Compose project.",
+          "type": "string",
+          "minLength": 1
+        },
+        "guest": {
+          "$ref": "#/$defs/guest"
+        },
+        "upstream": {
+          "$ref": "#/$defs/upstream"
+        },
+        "networks": {
+          "description": "Compose networks Caddy joins to reach the upstream (host instances only).",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "compose_project": {
+          "description": "Compose project and directory /opt/<compose_project> (host instances only). Default: the instance name.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$"
+        }
+      }
+    },
+    "guest": {
+      "description": "The instance is its own VM or container; the sidecar runs native.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "platform",
+        "node",
+        "vm_id",
+        "ip"
+      ],
+      "properties": {
+        "platform": {
+          "enum": [
+            "proxmox-lxc"
+          ]
+        },
+        "node": {
+          "type": "string",
+          "minLength": 1
+        },
+        "vm_id": {
+          "type": "integer",
+          "minimum": 100
+        },
+        "ip": {
+          "$ref": "#/$defs/ipv4"
+        }
+      }
+    },
+    "conventions": {
+      "description": "The repository's own rules on top of the kit's; checked by the catalog module like every other rule.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "alias_names": {
+          "description": "Per environment (or default) the name every alias of an instance in that environment must have. {app} and {env} are replaced, e.g. prod: \"{app}\", default: \"{app}-{env}\".",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*$"
+          },
+          "properties": {
+            "description": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-z0-9{}-]+$"
+          }
+        }
+      }
+    }
+  }
+}

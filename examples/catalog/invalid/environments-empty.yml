@@ -1,0 +1,8 @@
+# expect-output: site
+# expect-error: site.environments must list at least one environment
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: []
+apps: {}

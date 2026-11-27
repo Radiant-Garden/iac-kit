@@ -1,0 +1,591 @@
+{
+  "site": {
+    "domains": {
+      "services": "svc.example.org"
+    },
+    "environments": [
+      "prod",
+      "staging",
+      "dev"
+    ],
+    "dns": {
+      "provider": "netbird-zone",
+      "distribution_groups": [
+        "staff"
+      ]
+    },
+    "acme": {
+      "provider": "hetzner",
+      "challenge_zone": "acme.example.com"
+    },
+    "allow_from": [
+      "100.64.0.0/10"
+    ],
+    "identity": {
+      "provider": "entra",
+      "role_namespace": "https://example.org/apps"
+    }
+  },
+  "apps": {
+    "metrics": {
+      "description": "",
+      "ports": [
+        "tcp/9100"
+      ],
+      "access": [
+        "monitoring"
+      ],
+      "role": "metrics",
+      "group": "app-metrics",
+      "size": null,
+      "sign_in": null,
+      "instances": [
+        "metrics-01-prod"
+      ],
+      "aliases": {}
+    },
+    "resolver": {
+      "description": "Internal DNS resolver",
+      "ports": [
+        "tcp/53",
+        "udp/53",
+        "tcp/853"
+      ],
+      "access": [
+        "All"
+      ],
+      "role": "resolver",
+      "group": "app-resolver",
+      "size": {
+        "cores": 1,
+        "memory": 1024,
+        "disk": 8
+      },
+      "sign_in": null,
+      "instances": [
+        "resolver-01-prod",
+        "resolver-02-prod"
+      ],
+      "aliases": {
+        "resolver": "resolver-01-prod"
+      }
+    },
+    "tracker": {
+      "description": "Issue tracker",
+      "ports": [
+        "tcp/443"
+      ],
+      "access": [
+        "staff",
+        "contractors"
+      ],
+      "role": "issue_tracker",
+      "group": "app-tracker",
+      "size": null,
+      "sign_in": {
+        "redirect_paths": [
+          "/auth/callback",
+          "/"
+        ],
+        "roles": {},
+        "local": null,
+        "refresh_tokens": true,
+        "id_token_claims": [
+          "auth_time",
+          "login_hint"
+        ]
+      },
+      "instances": [
+        "tracker-01-staging"
+      ],
+      "aliases": {
+        "tracker-staging": "tracker-01-staging"
+      }
+    },
+    "wiki": {
+      "description": "Team wiki",
+      "ports": [
+        "tcp/443"
+      ],
+      "access": [
+        "staff"
+      ],
+      "role": "wiki",
+      "group": "app-wiki",
+      "size": null,
+      "sign_in": {
+        "redirect_paths": [
+          "/oauth/callback"
+        ],
+        "roles": {
+          "wiki.editor": "Edits pages",
+          "wiki.reader": "Reads pages"
+        },
+        "local": "http://localhost:8080",
+        "refresh_tokens": false,
+        "id_token_claims": []
+      },
+      "instances": [
+        "wiki-01-dev",
+        "wiki-01-prod",
+        "wiki-02-prod"
+      ],
+      "aliases": {
+        "wiki": "wiki-01-prod",
+        "wiki-dev": "wiki-01-dev",
+        "wiki-next": "wiki-02-prod"
+      }
+    }
+  },
+  "instances": {
+    "metrics-01-prod": {
+      "name": "metrics-01-prod",
+      "app": "metrics",
+      "env": "prod",
+      "host": "apps-01",
+      "guest": null,
+      "upstream": null,
+      "networks": [],
+      "compose_project": "metrics-01-prod",
+      "fqdn": "metrics-01-prod.svc.example.org",
+      "aliases": [],
+      "hostnames": [
+        "metrics-01-prod.svc.example.org"
+      ]
+    },
+    "resolver-01-prod": {
+      "name": "resolver-01-prod",
+      "app": "resolver",
+      "env": "prod",
+      "host": null,
+      "guest": {
+        "platform": "proxmox-lxc",
+        "node": "pve-01",
+        "vm_id": 201,
+        "ip": "192.0.2.11"
+      },
+      "upstream": null,
+      "networks": [],
+      "compose_project": null,
+      "fqdn": "resolver-01-prod.svc.example.org",
+      "aliases": [
+        "resolver"
+      ],
+      "hostnames": [
+        "resolver-01-prod.svc.example.org",
+        "resolver.svc.example.org"
+      ]
+    },
+    "resolver-02-prod": {
+      "name": "resolver-02-prod",
+      "app": "resolver",
+      "env": "prod",
+      "host": null,
+      "guest": {
+        "platform": "proxmox-lxc",
+        "node": "pve-02",
+        "vm_id": 202,
+        "ip": "192.0.2.12"
+      },
+      "upstream": "127.0.0.1:8053",
+      "networks": [],
+      "compose_project": null,
+      "fqdn": "resolver-02-prod.svc.example.org",
+      "aliases": [],
+      "hostnames": [
+        "resolver-02-prod.svc.example.org"
+      ]
+    },
+    "tracker-01-staging": {
+      "name": "tracker-01-staging",
+      "app": "tracker",
+      "env": "staging",
+      "host": "apps-02",
+      "guest": null,
+      "upstream": "unix//run/tracker/http.sock",
+      "networks": [
+        "edge"
+      ],
+      "compose_project": "tracker-01-staging",
+      "fqdn": "tracker-01-staging.svc.example.org",
+      "aliases": [
+        "tracker-staging"
+      ],
+      "hostnames": [
+        "tracker-01-staging.svc.example.org",
+        "tracker-staging.svc.example.org"
+      ]
+    },
+    "wiki-01-dev": {
+      "name": "wiki-01-dev",
+      "app": "wiki",
+      "env": "dev",
+      "host": "apps-02",
+      "guest": null,
+      "upstream": "127.0.0.1:3000",
+      "networks": [],
+      "compose_project": "wiki-01-dev",
+      "fqdn": "wiki-01-dev.svc.example.org",
+      "aliases": [
+        "wiki-dev"
+      ],
+      "hostnames": [
+        "wiki-01-dev.svc.example.org",
+        "wiki-dev.svc.example.org"
+      ]
+    },
+    "wiki-01-prod": {
+      "name": "wiki-01-prod",
+      "app": "wiki",
+      "env": "prod",
+      "host": "apps-01",
+      "guest": null,
+      "upstream": "wiki:8080",
+      "networks": [],
+      "compose_project": "wiki",
+      "fqdn": "wiki-01-prod.svc.example.org",
+      "aliases": [
+        "wiki"
+      ],
+      "hostnames": [
+        "wiki-01-prod.svc.example.org",
+        "wiki.svc.example.org"
+      ]
+    },
+    "wiki-02-prod": {
+      "name": "wiki-02-prod",
+      "app": "wiki",
+      "env": "prod",
+      "host": "apps-01",
+      "guest": null,
+      "upstream": "wiki:8080",
+      "networks": [],
+      "compose_project": "wiki-02-prod",
+      "fqdn": "wiki-02-prod.svc.example.org",
+      "aliases": [
+        "wiki-next"
+      ],
+      "hostnames": [
+        "wiki-02-prod.svc.example.org",
+        "wiki-next.svc.example.org"
+      ]
+    }
+  },
+  "service_names": {
+    "metrics-01-prod.svc.example.org": {
+      "type": "CNAME",
+      "name": "metrics-01-prod",
+      "instance": "metrics-01-prod",
+      "target": null
+    },
+    "resolver-01-prod.svc.example.org": {
+      "type": "CNAME",
+      "name": "resolver-01-prod",
+      "instance": "resolver-01-prod",
+      "target": null
+    },
+    "resolver-02-prod.svc.example.org": {
+      "type": "CNAME",
+      "name": "resolver-02-prod",
+      "instance": "resolver-02-prod",
+      "target": null
+    },
+    "resolver.svc.example.org": {
+      "type": "CNAME",
+      "name": "resolver",
+      "instance": "resolver-01-prod",
+      "target": "resolver-01-prod.svc.example.org"
+    },
+    "tracker-01-staging.svc.example.org": {
+      "type": "CNAME",
+      "name": "tracker-01-staging",
+      "instance": "tracker-01-staging",
+      "target": null
+    },
+    "tracker-staging.svc.example.org": {
+      "type": "CNAME",
+      "name": "tracker-staging",
+      "instance": "tracker-01-staging",
+      "target": "tracker-01-staging.svc.example.org"
+    },
+    "wiki-01-dev.svc.example.org": {
+      "type": "CNAME",
+      "name": "wiki-01-dev",
+      "instance": "wiki-01-dev",
+      "target": null
+    },
+    "wiki-01-prod.svc.example.org": {
+      "type": "CNAME",
+      "name": "wiki-01-prod",
+      "instance": "wiki-01-prod",
+      "target": null
+    },
+    "wiki-02-prod.svc.example.org": {
+      "type": "CNAME",
+      "name": "wiki-02-prod",
+      "instance": "wiki-02-prod",
+      "target": null
+    },
+    "wiki.svc.example.org": {
+      "type": "CNAME",
+      "name": "wiki",
+      "instance": "wiki-01-prod",
+      "target": "wiki-01-prod.svc.example.org"
+    },
+    "wiki-dev.svc.example.org": {
+      "type": "CNAME",
+      "name": "wiki-dev",
+      "instance": "wiki-01-dev",
+      "target": "wiki-01-dev.svc.example.org"
+    },
+    "wiki-next.svc.example.org": {
+      "type": "CNAME",
+      "name": "wiki-next",
+      "instance": "wiki-02-prod",
+      "target": "wiki-02-prod.svc.example.org"
+    }
+  },
+  "acme_names": {
+    "metrics-01-prod.svc.example.org": {
+      "name": "metrics-01-prod",
+      "label": "metrics-01-prod-svc-example-org",
+      "target": "metrics-01-prod-svc-example-org.acme.example.com"
+    },
+    "resolver-01-prod.svc.example.org": {
+      "name": "resolver-01-prod",
+      "label": "resolver-01-prod-svc-example-org",
+      "target": "resolver-01-prod-svc-example-org.acme.example.com"
+    },
+    "resolver-02-prod.svc.example.org": {
+      "name": "resolver-02-prod",
+      "label": "resolver-02-prod-svc-example-org",
+      "target": "resolver-02-prod-svc-example-org.acme.example.com"
+    },
+    "resolver.svc.example.org": {
+      "name": "resolver",
+      "label": "resolver-svc-example-org",
+      "target": "resolver-svc-example-org.acme.example.com"
+    },
+    "tracker-01-staging.svc.example.org": {
+      "name": "tracker-01-staging",
+      "label": "tracker-01-staging-svc-example-org",
+      "target": "tracker-01-staging-svc-example-org.acme.example.com"
+    },
+    "tracker-staging.svc.example.org": {
+      "name": "tracker-staging",
+      "label": "tracker-staging-svc-example-org",
+      "target": "tracker-staging-svc-example-org.acme.example.com"
+    },
+    "wiki-01-dev.svc.example.org": {
+      "name": "wiki-01-dev",
+      "label": "wiki-01-dev-svc-example-org",
+      "target": "wiki-01-dev-svc-example-org.acme.example.com"
+    },
+    "wiki-01-prod.svc.example.org": {
+      "name": "wiki-01-prod",
+      "label": "wiki-01-prod-svc-example-org",
+      "target": "wiki-01-prod-svc-example-org.acme.example.com"
+    },
+    "wiki-02-prod.svc.example.org": {
+      "name": "wiki-02-prod",
+      "label": "wiki-02-prod-svc-example-org",
+      "target": "wiki-02-prod-svc-example-org.acme.example.com"
+    },
+    "wiki.svc.example.org": {
+      "name": "wiki",
+      "label": "wiki-svc-example-org",
+      "target": "wiki-svc-example-org.acme.example.com"
+    },
+    "wiki-dev.svc.example.org": {
+      "name": "wiki-dev",
+      "label": "wiki-dev-svc-example-org",
+      "target": "wiki-dev-svc-example-org.acme.example.com"
+    },
+    "wiki-next.svc.example.org": {
+      "name": "wiki-next",
+      "label": "wiki-next-svc-example-org",
+      "target": "wiki-next-svc-example-org.acme.example.com"
+    }
+  },
+  "policies": {
+    "metrics/tcp": {
+      "name": "monitoring to app-metrics (tcp)",
+      "app": "metrics",
+      "sources": [
+        "monitoring"
+      ],
+      "destination": "app-metrics",
+      "protocol": "tcp",
+      "ports": [
+        "9100"
+      ]
+    },
+    "resolver/tcp": {
+      "name": "All to app-resolver (tcp)",
+      "app": "resolver",
+      "sources": [
+        "All"
+      ],
+      "destination": "app-resolver",
+      "protocol": "tcp",
+      "ports": [
+        "53",
+        "853"
+      ]
+    },
+    "resolver/udp": {
+      "name": "All to app-resolver (udp)",
+      "app": "resolver",
+      "sources": [
+        "All"
+      ],
+      "destination": "app-resolver",
+      "protocol": "udp",
+      "ports": [
+        "53"
+      ]
+    },
+    "tracker/tcp": {
+      "name": "staff, contractors to app-tracker (tcp)",
+      "app": "tracker",
+      "sources": [
+        "staff",
+        "contractors"
+      ],
+      "destination": "app-tracker",
+      "protocol": "tcp",
+      "ports": [
+        "443"
+      ]
+    },
+    "wiki/tcp": {
+      "name": "staff to app-wiki (tcp)",
+      "app": "wiki",
+      "sources": [
+        "staff"
+      ],
+      "destination": "app-wiki",
+      "protocol": "tcp",
+      "ports": [
+        "443"
+      ]
+    }
+  },
+  "guests": {
+    "resolver-01-prod": {
+      "app": "resolver",
+      "platform": "proxmox-lxc",
+      "node": "pve-01",
+      "vm_id": 201,
+      "ip": "192.0.2.11",
+      "size": {
+        "cores": 1,
+        "memory": 1024,
+        "disk": 8
+      }
+    },
+    "resolver-02-prod": {
+      "app": "resolver",
+      "platform": "proxmox-lxc",
+      "node": "pve-02",
+      "vm_id": 202,
+      "ip": "192.0.2.12",
+      "size": {
+        "cores": 1,
+        "memory": 1024,
+        "disk": 8
+      }
+    }
+  },
+  "sign_in": {
+    "tracker-staging": {
+      "app": "tracker",
+      "env": "staging",
+      "local": false,
+      "urls": [
+        "https://tracker-01-staging.svc.example.org",
+        "https://tracker-staging.svc.example.org"
+      ],
+      "redirect_uris": [
+        "https://tracker-01-staging.svc.example.org/auth/callback",
+        "https://tracker-01-staging.svc.example.org/",
+        "https://tracker-staging.svc.example.org/auth/callback",
+        "https://tracker-staging.svc.example.org/"
+      ],
+      "roles": {},
+      "refresh_tokens": true,
+      "id_token_claims": [
+        "auth_time",
+        "login_hint"
+      ]
+    },
+    "wiki-dev": {
+      "app": "wiki",
+      "env": "dev",
+      "local": false,
+      "urls": [
+        "https://wiki-01-dev.svc.example.org",
+        "https://wiki-dev.svc.example.org"
+      ],
+      "redirect_uris": [
+        "https://wiki-01-dev.svc.example.org/oauth/callback",
+        "https://wiki-dev.svc.example.org/oauth/callback"
+      ],
+      "roles": {
+        "wiki.editor": "Edits pages",
+        "wiki.reader": "Reads pages"
+      },
+      "refresh_tokens": false,
+      "id_token_claims": []
+    },
+    "wiki-prod": {
+      "app": "wiki",
+      "env": "prod",
+      "local": false,
+      "urls": [
+        "https://wiki-01-prod.svc.example.org",
+        "https://wiki-02-prod.svc.example.org",
+        "https://wiki.svc.example.org",
+        "https://wiki-next.svc.example.org"
+      ],
+      "redirect_uris": [
+        "https://wiki-01-prod.svc.example.org/oauth/callback",
+        "https://wiki-02-prod.svc.example.org/oauth/callback",
+        "https://wiki.svc.example.org/oauth/callback",
+        "https://wiki-next.svc.example.org/oauth/callback"
+      ],
+      "roles": {
+        "wiki.editor": "Edits pages",
+        "wiki.reader": "Reads pages"
+      },
+      "refresh_tokens": false,
+      "id_token_claims": []
+    },
+    "wiki-local": {
+      "app": "wiki",
+      "env": null,
+      "local": true,
+      "urls": [
+        "http://localhost:8080"
+      ],
+      "redirect_uris": [
+        "http://localhost:8080/oauth/callback"
+      ],
+      "roles": {
+        "wiki.editor": "Edits pages",
+        "wiki.reader": "Reads pages"
+      },
+      "refresh_tokens": false,
+      "id_token_claims": []
+    }
+  },
+  "conventions": {
+    "alias_names": {
+      "description": "Outside prod an alias is <app>-<env>",
+      "patterns": {
+        "dev": "{app}-{env}",
+        "staging": "{app}-{env}"
+      }
+    }
+  }
+}

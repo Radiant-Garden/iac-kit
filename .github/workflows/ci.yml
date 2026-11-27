@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  TOFU_VERSION: 1.11.5
+
+jobs:
+  tofu:
+    name: tofu fmt, validate, test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+      - name: tofu fmt -check
+        run: tofu fmt -check -recursive -diff
+      - name: tofu validate
+        run: ci/validate.sh
+      - name: tofu test
+        run: tofu -chdir=tofu/modules/catalog init -input=false -backend=false && tofu -chdir=tofu/modules/catalog test
+
+  examples:
+    name: example catalogs (schema, plan messages, lookups)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+      - name: install check-jsonschema
+        run: pipx install check-jsonschema==0.33.0
+      - name: check examples
+        run: ci/check-examples.sh
+      - name: check bin/catalog lookups
+        run: ci/check-lookups.sh
+
+  allowlist:
+    name: allowlist (no customer data)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: self-test
+        run: python3 ci/allowlist-check.py --self-test
+      - name: check every tracked file
+        run: python3 ci/allowlist-check.py
+      - name: check commit messages
+        run: python3 ci/allowlist-check.py --commits HEAD

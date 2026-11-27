@@ -1,0 +1,12 @@
+# expect-output: site
+# expect-error: missing required keys: apps.wiki.ports
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    access: [staff]
+    instances:
+      wiki-01-prod: { host: apps-01 }

@@ -1,0 +1,13 @@
+# The v0 format listed instances; v1 makes them a map.
+# expect-output: instances
+# expect-error: instances and aliases must be maps (catalog v1; v0 listed instances): apps.wiki.instances
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    ports: [tcp/443]
+    access: [staff]
+    instances: [wiki-01-prod]

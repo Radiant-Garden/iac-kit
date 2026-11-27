@@ -1,0 +1,8 @@
+# expect-output: site
+# expect-error: `schema` must be 1
+# schema: invalid
+schema: 2
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps: {}

@@ -1,0 +1,13 @@
+# expect-output: site
+# expect-error: list entries must not be empty (null): apps.wiki.access
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    ports: [tcp/443]
+    access: [staff, ~]
+    instances:
+      wiki-01-prod: { host: apps-01 }

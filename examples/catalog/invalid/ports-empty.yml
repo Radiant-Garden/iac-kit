@@ -1,0 +1,11 @@
+# expect-output: apps
+# expect-error: ports must list at least one port: wiki
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    ports: []
+    access: [staff]
