@@ -1,0 +1,17 @@
+# Domains the kit may name; a name matches if it equals one of these or ends
+# with "." + one of these. Everything else under a real TLD fails CI
+# (ci/allowlist-check.py). Add vendor hosts here, never customer ones.
+
+# RFC 2606 example domains
+example.org
+example.com
+example.net
+
+# Vendors and standards the kit links to or pulls from
+github.com
+ghcr.io
+opentofu.org
+json-schema.org
+apache.org
+keepachangelog.com
+semver.org
