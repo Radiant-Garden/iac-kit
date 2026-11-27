@@ -26,6 +26,9 @@
       "additionalProperties": {
         "$ref": "#/$defs/app"
       }
+    },
+    "conventions": {
+      "$ref": "#/$defs/conventions"
     }
   },
   "$defs": {
@@ -389,6 +392,30 @@
         },
         "ip": {
           "$ref": "#/$defs/ipv4"
+        }
+      }
+    },
+    "conventions": {
+      "description": "The repository's own rules on top of the kit's; checked by the catalog module like every other rule.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "alias_names": {
+          "description": "Per environment (or default) the name every alias of an instance in that environment must have. {app} and {env} are replaced, e.g. prod: \"{app}\", default: \"{app}-{env}\".",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*$"
+          },
+          "properties": {
+            "description": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-z0-9{}-]+$"
+          }
         }
       }
     }

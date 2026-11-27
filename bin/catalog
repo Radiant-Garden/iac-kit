@@ -17,6 +17,7 @@
 #   access <group>      what a group may reach
 #   sign-in [app]       sign-in registrations and redirect URIs
 #   hosts               every host and guest node the catalog uses
+#   conventions         the repository's own rules from catalog.yml
 #   json [jq filter]    the whole model as JSON, e.g. json '.instances | keys'
 #
 # --json prints the answer as JSON instead of text (for scripts and AI agents).
@@ -63,6 +64,7 @@ output "catalog" {
     policies      = module.catalog.policies
     guests        = module.catalog.guests
     sign_in       = module.catalog.sign_in
+    conventions   = module.catalog.conventions
   }
 }
 EOF
@@ -186,6 +188,14 @@ case $cmd in
   hosts)
     if $json; then q '{hosts: ([.instances[].host // empty] | unique), guest_nodes: ([.guests[].node] | unique)}'; else
       q '([.instances[].host // empty] | unique[]), ([.guests[].node] | unique[] | "\(.) (guest node)")'
+    fi
+    ;;
+
+  conventions)
+    if $json; then q '.conventions'; else
+      q 'if .conventions.alias_names then "alias_names: \(.conventions.alias_names.description)",
+           (.conventions.alias_names.patterns | to_entries[] | "  \(.key): \(.value)")
+         else "no conventions" end'
     fi
     ;;
 

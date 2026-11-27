@@ -46,6 +46,7 @@ expect "an instance name points at its peer" "the NetBird peer wiki-01-prod" nam
 expect "instance shows the ACME target" "_acme-challenge → tracker-staging-svc-example-org.acme.example.com" instance tracker-01-staging
 expect "access lists what a group reaches" "staff, contractors to app-tracker (tcp)" access contractors
 expect "sign-in lists redirect URIs" "https://wiki-next.svc.example.org/oauth/callback" sign-in wiki
+expect "conventions are listed" "staging: {app}-{env}" conventions
 expect "hosts lists guest nodes" "pve-02 (guest node)" hosts
 expect "--json answers in JSON" '"vm_id": 202' --json instance resolver-02-prod
 

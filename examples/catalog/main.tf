@@ -25,5 +25,6 @@ output "catalog" {
     policies      = module.catalog.policies
     guests        = module.catalog.guests
     sign_in       = module.catalog.sign_in
+    conventions   = module.catalog.conventions
   }
 }

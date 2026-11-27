@@ -21,6 +21,7 @@ output "catalog" {
     policies      = module.catalog.policies
     guests        = module.catalog.guests
     sign_in       = module.catalog.sign_in
+    conventions   = module.catalog.conventions
   }
 }
 ```
@@ -42,6 +43,7 @@ order.
 | `acme_names` | FQDN | `{ name, label, target }`: `label = replace(fqdn, ".", "-")`, `target = "<label>.<site.acme.challenge_zone>"`. The only formula for challenge names: the `_acme-challenge` CNAME and Caddy's `dns_challenge_override_domain` both use `target`. Empty without `site.acme` |
 | `policies` | `<app>/<proto>` | `{ name, app, sources, destination, protocol, ports }`, one per app and protocol; `name = "<access, joined by ", "> to app-<app> (<proto>)"`, `destination = "app-<app>"` |
 | `guests` | instance | `{ app, platform, node, vm_id, ip, size }` for instances with `guest` |
+| `conventions` | – | the repository's own conventions (`null` when absent), see below |
 | `sign_in` | `<app>-<env>`, `<app>-local` | `{ app, env, local, urls, redirect_uris, roles, refresh_tokens, id_token_claims }`. One registration per app with `sign_in` and environment it has instances in: `urls` are `https://<name>.<domain>` for that environment's instances, then the aliases pointing at them; `redirect_uris` = each URL × each redirect path. `<app>-local` (with `env = null`) when `sign_in.local` is set |
 
 ## Rules
@@ -63,6 +65,8 @@ Because app, alias and environment names are DNS labels (no dots), distinct
 names always give distinct challenge labels, so `acme_names` targets are
 unique without a rule of their own.
 
+| `conventions` | conventions name only environments from `site.environments` (or `default`); every alias follows `alias_names` |
+
 Every rule has an invalid catalog in
 [`examples/catalog/invalid/`](../../../examples/catalog/invalid/) that must
 fail the plan with that rule's message.
@@ -81,6 +85,28 @@ owns it.
 Rules sit on the output they concern. In a normal plan every output is
 evaluated, used or not; `tofu plan -target=...` evaluates only the outputs the
 target depends on, and skips the rules on the others.
+
+## Conventions
+
+Rules a repository sets for itself, on top of the kit's, written in
+`catalog.yml` and checked like every other rule (plan, `tofu test`,
+`bin/catalog check`). They are plain YAML, so people and AI agents can read
+and write them without knowing OpenTofu.
+
+```yaml
+conventions:
+  alias_names:
+    description: The prod alias is the app name, all others <app>-<env>
+    prod: "{app}"
+    default: "{app}-{env}"
+```
+
+`alias_names`: for each alias, the pattern of its instance's environment (or
+`default`) gives the name it must have; `{app}` and `{env}` are replaced. An
+environment with no pattern and no `default` is free. The message names every
+alias that breaks the convention and what it should be called.
+
+More kinds of conventions are added to the kit when a repository needs them.
 
 ## How it is built
 

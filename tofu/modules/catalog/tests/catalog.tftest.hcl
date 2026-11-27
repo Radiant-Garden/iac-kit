@@ -45,6 +45,10 @@ run "valid" {
     error_message = "output.guests differs from expected.json: ${jsonencode(output.guests)}"
   }
   assert {
+    condition     = jsonencode(output.conventions) == jsonencode(jsondecode(file("../../../examples/catalog/expected.json")).conventions)
+    error_message = "output.conventions differs from expected.json: ${jsonencode(output.conventions)}"
+  }
+  assert {
     condition     = jsonencode(output.sign_in) == jsonencode(jsondecode(file("../../../examples/catalog/expected.json")).sign_in)
     error_message = "output.sign_in differs from expected.json: ${jsonencode(output.sign_in)}"
   }
@@ -150,6 +154,26 @@ run "invalid_compose_project_format" {
 
   expect_failures = [output.instances]
 }
+run "invalid_convention_alias_name" {
+  command = plan
+
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/convention-alias-name.yml"))
+  }
+
+  expect_failures = [output.conventions]
+}
+
+run "invalid_convention_environment" {
+  command = plan
+
+  variables {
+    catalog = yamldecode(file("../../../examples/catalog/invalid/convention-environment.yml"))
+  }
+
+  expect_failures = [output.conventions]
+}
+
 run "invalid_environment_name" {
   command = plan
 

@@ -1,0 +1,27 @@
+# The repository's convention: the prod alias is the app name.
+# expect-output: conventions
+# expect-error: convention alias_names (Prod alias is <app>, others <app>-<env>): docs-test (docs-01-dev) should be docs-dev; wiki-next (wiki-02-prod) should be wiki
+# schema: valid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod, dev]
+conventions:
+  alias_names:
+    description: Prod alias is <app>, others <app>-<env>
+    prod: "{app}"
+    default: "{app}-{env}"
+apps:
+  wiki:
+    ports: [tcp/443]
+    access: [staff]
+    instances:
+      wiki-01-prod: { host: apps-01 }
+      wiki-02-prod: { host: apps-01 }
+    aliases: { wiki: wiki-01-prod, wiki-next: wiki-02-prod }
+  docs:
+    ports: [tcp/443]
+    access: [staff]
+    instances:
+      docs-01-dev: { host: apps-02 }
+    aliases: { docs-test: docs-01-dev }

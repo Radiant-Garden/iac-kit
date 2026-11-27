@@ -46,6 +46,10 @@ apps:
     aliases: { wiki: wiki-01-prod }
 ```
 
+A repository can add its own rules under `conventions:` (for example how
+aliases are named), and they are checked like the kit's; see the module
+README.
+
 The full example is [`examples/catalog/catalog.yml`](examples/catalog/catalog.yml);
 the outputs, their keys and the validation rules are described in
 [`tofu/modules/catalog/README.md`](tofu/modules/catalog/README.md). Editors

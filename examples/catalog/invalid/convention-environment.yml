@@ -1,0 +1,10 @@
+# expect-output: conventions
+# expect-error: conventions name environments that are not in site.environments: conventions.alias_names.qa
+# schema: valid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+conventions:
+  alias_names: { prod: "{app}", qa: "{app}-qa" }
+apps: {}

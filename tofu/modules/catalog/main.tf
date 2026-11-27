@@ -21,17 +21,18 @@ locals {
   # ── Structure ──────────────────────────────────────────────────────────────
 
   allowed_keys = {
-    catalog  = ["schema", "site", "apps"]
-    site     = ["domains", "environments", "dns", "acme", "allow_from", "identity"]
-    domains  = ["services"]
-    dns      = ["provider", "distribution_groups"]
-    acme     = ["provider", "challenge_zone"]
-    identity = ["provider", "role_namespace"]
-    app      = ["description", "ports", "access", "role", "size", "sign_in", "instances", "aliases"]
-    size     = ["cores", "memory", "disk"]
-    sign_in  = ["redirect_paths", "roles", "local", "refresh_tokens", "id_token_claims"]
-    instance = ["host", "guest", "upstream", "networks", "compose_project"]
-    guest    = ["platform", "node", "vm_id", "ip"]
+    catalog     = ["schema", "site", "apps", "conventions"]
+    conventions = ["alias_names"]
+    site        = ["domains", "environments", "dns", "acme", "allow_from", "identity"]
+    domains     = ["services"]
+    dns         = ["provider", "distribution_groups"]
+    acme        = ["provider", "challenge_zone"]
+    identity    = ["provider", "role_namespace"]
+    app         = ["description", "ports", "access", "role", "size", "sign_in", "instances", "aliases"]
+    size        = ["cores", "memory", "disk"]
+    sign_in     = ["redirect_paths", "roles", "local", "refresh_tokens", "id_token_claims"]
+    instance    = ["host", "guest", "upstream", "networks", "compose_project"]
+    guest       = ["platform", "node", "vm_id", "ip"]
   }
 
   required_keys = {
@@ -77,6 +78,7 @@ locals {
   objects = concat(
     [{ path = "catalog", kind = "catalog", value = local.raw }],
     [{ path = "site", kind = "site", value = local.raw_site }],
+    [{ path = "conventions", kind = "conventions", value = try(local.raw.conventions, null) }],
     [for k in ["domains", "dns", "acme", "identity"] : { path = "site.${k}", kind = k, value = try(local.raw_site[k], null) }],
     flatten([
       for app in local.app_names : concat(
@@ -369,6 +371,53 @@ locals {
   rule_long_labels = [
     for r in local.name_rows : "${r.name}.${local.fqdn_suffix}"
     if length(replace("${r.name}.${local.fqdn_suffix}", ".", "-")) > 63
+  ]
+
+  # ── Conventions ────────────────────────────────────────────────────────────
+  # A repository's own rules on top of the kit's, written in catalog.yml.
+  # alias_names: per environment (or `default`) the name every alias of an
+  # instance in that environment must have; {app} and {env} are replaced.
+
+  raw_alias_names = try(local.raw.conventions.alias_names, null)
+  alias_name_patterns = local.raw_alias_names == null ? {} : {
+    for k in keys(local.raw_alias_names) : k =>
+    local.raw_alias_names[k] == null ? local.null_s : tostring(local.raw_alias_names[k])
+    if k != "description"
+  }
+
+  conventions = {
+    alias_names = local.raw_alias_names == null ? null : {
+      description = try(local.raw_alias_names.description, null) == null ? "" : tostring(local.raw_alias_names.description)
+      patterns    = local.alias_name_patterns
+    }
+  }
+
+  rule_bad_convention_keys = [
+    for k in keys(local.alias_name_patterns) : "conventions.alias_names.${k}"
+    if k != "default" && !contains(local.environments, k)
+  ]
+
+  # Each alias with the environment of its instance and, if a pattern applies
+  # to that environment, the name the convention expects.
+  alias_envs = [
+    for a in local.alias_list : {
+      alias    = a.alias
+      app      = a.app
+      instance = a.instance
+      env      = try(local.instances[a.instance].env, null)
+    }
+  ]
+  alias_expectations = [
+    for a in local.alias_envs : merge(a, {
+      expected = replace(replace(
+        lookup(local.alias_name_patterns, a.env, lookup(local.alias_name_patterns, "default", "")),
+      "{app}", a.app), "{env}", a.env)
+    })
+    if a.env != null && (contains(keys(local.alias_name_patterns), a.env) || contains(keys(local.alias_name_patterns), "default"))
+  ]
+
+  rule_alias_name_convention = [
+    for a in local.alias_expectations : "${a.alias} (${a.instance}) should be ${a.expected}" if a.alias != a.expected
   ]
 
   # ── Policies ───────────────────────────────────────────────────────────────

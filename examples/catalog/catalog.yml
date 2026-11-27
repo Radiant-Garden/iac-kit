@@ -13,6 +13,14 @@ site:
   allow_from: [100.64.0.0/10]
   identity: { provider: entra, role_namespace: https://example.org/apps }
 
+# This repository's own rules, checked like the kit's. Outside prod an alias
+# is <app>-<env>; prod aliases are free (wiki-next is the upgrade path).
+conventions:
+  alias_names:
+    description: Outside prod an alias is <app>-<env>
+    staging: "{app}-{env}"
+    dev: "{app}-{env}"
+
 apps:
   wiki:
     description: Team wiki

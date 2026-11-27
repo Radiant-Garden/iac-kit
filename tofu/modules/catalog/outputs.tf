@@ -187,3 +187,17 @@ output "sign_in" {
     error_message = "Catalog: redirect_paths must list at least one path, each starting with /: ${join(", ", local.rule_bad_redirect_paths)}."
   }
 }
+
+output "conventions" {
+  description = "The repository's own conventions from catalog.yml (null when absent), e.g. alias_names = { description, patterns = { <env> or default = pattern } }."
+  value       = local.conventions
+
+  precondition {
+    condition     = length(local.rule_bad_convention_keys) == 0
+    error_message = "Catalog: conventions name environments that are not in site.environments: ${join(", ", local.rule_bad_convention_keys)}."
+  }
+  precondition {
+    condition     = length(local.rule_alias_name_convention) == 0
+    error_message = "Catalog: convention alias_names (${local.conventions.alias_names == null ? "" : local.conventions.alias_names.description}): ${join("; ", local.rule_alias_name_convention)}."
+  }
+}
