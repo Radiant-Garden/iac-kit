@@ -1,0 +1,15 @@
+# expect-output: instances
+# expect-error: an instance needs exactly one of host and guest: resolver-01-prod
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  resolver:
+    ports: [udp/53]
+    access: [staff]
+    instances:
+      resolver-01-prod:
+        host: apps-01
+        guest: { platform: proxmox-lxc, node: pve-01, vm_id: 201, ip: 192.0.2.11 }

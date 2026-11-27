@@ -1,0 +1,20 @@
+# expect-output: service_names
+# expect-error: alias names must be unique across apps: home (docs, wiki)
+# schema: valid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    ports: [tcp/443]
+    access: [staff]
+    instances:
+      wiki-01-prod: { host: apps-01 }
+    aliases: { home: wiki-01-prod }
+  docs:
+    ports: [tcp/443]
+    access: [staff]
+    instances:
+      docs-01-prod: { host: apps-01 }
+    aliases: { home: docs-01-prod }

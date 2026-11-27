@@ -1,0 +1,13 @@
+# expect-output: apps
+# expect-error: access must name at least one group: wiki
+# schema: invalid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    ports: [tcp/443]
+    access: []
+    instances:
+      wiki-01-prod: { host: apps-01 }

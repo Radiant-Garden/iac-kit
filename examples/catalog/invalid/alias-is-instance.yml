@@ -1,0 +1,15 @@
+# expect-output: service_names
+# expect-error: an alias must not equal an instance name: wiki: wiki-02-prod
+# schema: valid
+schema: 1
+site:
+  domains: { services: svc.example.org }
+  environments: [prod]
+apps:
+  wiki:
+    ports: [tcp/443]
+    access: [staff]
+    instances:
+      wiki-01-prod: { host: apps-01 }
+      wiki-02-prod: { host: apps-01 }
+    aliases: { wiki-02-prod: wiki-01-prod }
